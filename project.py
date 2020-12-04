@@ -3,17 +3,19 @@ from __future__ import division
 from __future__ import print_function
 from ortools.sat.python import cp_model
 
+maxDim = 10
+
 
 class Rectangle:
     def __init__(self, minArea, model, width=0, height=0):
         self.minArea = minArea
-        self.width = model.NewIntVar(1, 1000, 'w')
-        self.height = model.NewIntVar(1, 1000, 'h')
-        self.area = model.NewIntVar(minArea, 1000*1000, 'area')
-        self.startRow = model.NewIntVar(0, 1000, 'startRow')
-        self.startCol = model.NewIntVar(0, 1000, 'startCol')
-        self.endRow = model.NewIntVar(0, 1000, 'endRow')
-        self.endCol = model.NewIntVar(0, 1000, 'endCol')
+        self.width = model.NewIntVar(1, maxDim, 'w')
+        self.height = model.NewIntVar(1, maxDim, 'h')
+        self.area = model.NewIntVar(minArea, maxDim*maxDim, 'area')
+        self.startRow = model.NewIntVar(0, maxDim, 'startRow')
+        self.startCol = model.NewIntVar(0, maxDim, 'startCol')
+        self.endRow = model.NewIntVar(0, maxDim, 'endRow')
+        self.endCol = model.NewIntVar(0, maxDim, 'endCol')
         if(width > 0):
             self.addWidth(width, model)
         if(height > 0):
@@ -49,6 +51,21 @@ class Rectangle:
         return self.endRow
 
 
+def VisualizeApartments(model, rooms):
+    visualizedApartment = [[0 for i in range(10)] for j in range(10)]
+    for index, room in enumerate(rooms):
+        startRow = solver.Value(room.startRow)
+        startCol = solver.Value(room.startCol)
+        roomHeight = solver.Value(room.height)
+        roomWidth = solver.Value(room.width)
+        for i in range(startRow, startRow + roomHeight):
+            for j in range(startCol, startCol + roomWidth):
+                visualizedApartment[i][j] = index + 1
+
+    for row in visualizedApartment:
+        print(row)
+
+
 def addNoIntersectionConstraint(model, rooms):
     # for i in range(len(rooms)):
     #     for j in range(i):
@@ -77,21 +94,37 @@ for i in range(nOfRooms):
 #     print("%s = %i" % (i, solver.Value(i)))
 addNoIntersectionConstraint(model, rooms)
 
-solver = cp_model.CpSolver()
-status = solver.Solve(model)
-print(solver.StatusName())
+
 leftBorders = [rooms[i].getLeft() for i in range(nOfRooms)]
 rightBorders = [rooms[i].getRight() for i in range(nOfRooms)]
 upBorders = [rooms[i].getTop() for i in range(nOfRooms)]
 downBorders = [rooms[i].getBottom() for i in range(nOfRooms)]
-apartment_startRow = model.NewIntVar(0, 1000, 'appar_start_row')
-apartment_endRow = model.NewIntVar(0, 1000, 'appar_end_row')
-apartment_startCol = model.NewIntVar(0, 1000, 'appar_start_col')
-apartment_endCol = model.NewIntVar(0, 1000, 'appar_end_scol')
+apartment_startRow = model.NewIntVar(0, maxDim, 'appar_start_row')
+apartment_endRow = model.NewIntVar(0, maxDim, 'appar_end_row')
+apartment_startCol = model.NewIntVar(0, maxDim, 'appar_start_col')
+apartment_endCol = model.NewIntVar(0, maxDim, 'appar_end_scol')
 model.AddMinEquality(apartment_startCol, leftBorders)
-# model.AddMaxEquality(apartment_endCol, rightBorders)
+model.AddMaxEquality(apartment_endCol, rightBorders)
 model.AddMinEquality(apartment_startRow, upBorders)
-# model.AddMinEquality(apartment_endRow, downBorders)
+model.AddMaxEquality(apartment_endRow, downBorders)
+apartment_width = model.NewIntVar(0, maxDim, 'xx')
+model.Add(apartment_width == apartment_endCol-apartment_startCol)
+
+apartment_height = model.NewIntVar(0, maxDim, 'xx')
+model.Add(apartment_height == apartment_endRow-apartment_startRow)
+
+appartment_area = model.NewIntVar(0, maxDim, 'area')
+model.AddMultiplicationEquality(appartment_area, [
+    apartment_width, apartment_height])
+
+model.Minimize(appartment_area)
+solver = cp_model.CpSolver()
+status = solver.Solve(model)
+print(solver.StatusName())
+print(solver.Value(appartment_area))
 for room in rooms:
     print(solver.Value(room.startRow), solver.Value(room.startCol),
           solver.Value(room.width), solver.Value(room.height))
+print(solver.Value(appartment_area))
+VisualizeApartments(model, rooms)
+#
