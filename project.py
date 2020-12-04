@@ -7,17 +7,21 @@ maxDim = 10
 
 
 class Rectangle:
+    roomId = 1
+
     def __init__(self, minArea=1, width=0, height=0):
         # Name the variable names in the model properly.
-        self.width = model.NewIntVar(1, maxDim, 'w')
-        self.height = model.NewIntVar(1, maxDim, 'h')
-        self.area = model.NewIntVar(minArea, maxDim * maxDim, 'area')
-        self.startRow = model.NewIntVar(0, maxDim, 'startRow')
-        self.startCol = model.NewIntVar(0, maxDim, 'startCol')
-        self.endRow = model.NewIntVar(0, maxDim, 'endRow')
-        self.endCol = model.NewIntVar(0, maxDim, 'endCol')
+        self.width = model.NewIntVar(1, maxDim, 'Width, room: %d' % Rectangle.roomId)
+        self.height = model.NewIntVar(1, maxDim, 'Height, room: %d' % Rectangle.roomId)
+        self.area = model.NewIntVar(minArea, maxDim * maxDim, 'Area, room: %d' % Rectangle.roomId)
+        self.startRow = model.NewIntVar(0, maxDim, 'Starting row, room: %d' % Rectangle.roomId)
+        self.startCol = model.NewIntVar(0, maxDim, 'Starting col, room: %d' % Rectangle.roomId)
+        self.endRow = model.NewIntVar(0, maxDim, 'Ending row, room: %d' % Rectangle.roomId)
+        self.endCol = model.NewIntVar(0, maxDim, 'Ending col, room: %d' % Rectangle.roomId)
 
         self.addGenericConstraints(width, height)
+
+        Rectangle.roomId += 1
 
     def addGenericConstraints(self, width, height):
         # We call the methods if the method is invoked with these parameters.
@@ -70,9 +74,8 @@ def VisualizeApartments(apartment, rooms):
     for row in visualizedApartment:
         print(row)
 
-# This method sets the relation between the start and end (rows/columns) by adding the |AddNoOverlap2D| constraint to the model.
-
-
+# This method sets the relation between the start and end (rows/columns)
+# by adding the |AddNoOverlap2D| constraint to the model.
 def AddNoIntersectionConstraint(rooms):
     rowIntervals = [model.NewIntervalVar(
         room.getTop(), room.height, room.getBottom(), 'room %d' % (roomNum + 1)) for roomNum, room in enumerate(rooms)]
@@ -87,6 +90,14 @@ def GetBorders(rooms):
     topBorders = [rooms[i].getTop() for i in range(nOfRooms)]
     bottomBorders = [rooms[i].getBottom() for i in range(nOfRooms)]
     return leftBorders, rightBorders, topBorders, bottomBorders
+
+def ConstraintApartmentDimensions(apartment):
+    leftBorders, rightBorders, topBorders, bottomBorders = GetBorders(rooms)
+
+    model.AddMinEquality(apartment.getLeft(), leftBorders)
+    model.AddMaxEquality(apartment.getRight(), rightBorders)
+    model.AddMinEquality(apartment.getTop(), topBorders)
+    model.AddMaxEquality(apartment.getBottom(), bottomBorders)
 
 ########################   Main Method Starts Here   ########################
 
@@ -111,13 +122,7 @@ AddNoIntersectionConstraint(rooms)
 
 apartment = Rectangle()
 
-leftBorders, rightBorders, topBorders, bottomBorders = GetBorders(rooms)
-
-model.AddMinEquality(apartment.getLeft(), leftBorders)
-model.AddMaxEquality(apartment.getRight(), rightBorders)
-model.AddMinEquality(apartment.getTop(), topBorders)
-model.AddMaxEquality(apartment.getBottom(), bottomBorders)
-
+ConstraintApartmentDimensions(apartment)
 
 model.Minimize(apartment.area)
 solver = cp_model.CpSolver()
@@ -129,3 +134,5 @@ for room in rooms:
           solver.Value(room.width), solver.Value(room.height))
 
 VisualizeApartments(apartment, rooms)
+
+########################   Main Method Ends Here   ##########################
