@@ -129,9 +129,6 @@ solver = cp_model.CpSolver()
 status = solver.Solve(model)
 print(solver.StatusName())
 print(solver.Value(apartment.area))
-for room in rooms:
-    print(solver.Value(room.startRow), solver.Value(room.startCol),
-          solver.Value(room.width), solver.Value(room.height))
 
 VisualizeApartments(apartment, rooms)
 
