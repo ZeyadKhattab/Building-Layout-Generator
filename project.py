@@ -12,6 +12,8 @@ class Rectangle:
         self.area = model.NewIntVar(minArea, 1000*1000, 'area')
         self.startRow = model.NewIntVar(0, 1000, 'startRow')
         self.startCol = model.NewIntVar(0, 1000, 'startCol')
+        self.endRow = model.NewIntVar(0, 1000, 'endRow')
+        self.endCol = model.NewIntVar(0, 1000, 'endCol')
         if(width > 0):
             self.addWidth(width, model)
         if(height > 0):
@@ -38,22 +40,27 @@ class Rectangle:
         return self.startCol
 
     def getRight(self):
-        return self.getLeft()+self.width-1
+        return self.endCol
 
     def getTop(self):
         return self.startRow
 
     def getBottom(self):
-        return self.getTop()+self.height-1
+        return self.endRow
 
 
 def addNoIntersectionConstraint(model, rooms):
-    for i in range(len(rooms)):
-        for j in range(i):
-            A = rooms[i]
-            B = rooms[j]
-            model.Add(A.getLeft() < B.getRight()
-                      and A.getRight() > B.getLeft() and A.getTop() > B.getBottom() and A.getBottom() < B.getTop())
+    # for i in range(len(rooms)):
+    #     for j in range(i):
+    #         A = rooms[i]
+    #         B = rooms[j]
+    #         model.Add(A.getLeft() < B.getRight()
+    #                   and A.getRight() > B.getLeft() and A.getTop() > B.getBottom() and A.getBottom() < B.getTop())
+    rowIntervals = [model.NewIntervalVar(
+        room.getTop(), room.height, room.getBottom(), 'room 1 ') for room in rooms]
+    colIntervals = [model.NewIntervalVar(
+        room.getLeft(), room.width, room.getRight(), 'room 1 ') for room in rooms]
+    model.AddNoOverlap2D(colIntervals, rowIntervals)
 
 
 nOfApartments = 1
