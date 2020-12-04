@@ -62,6 +62,21 @@ def addNoIntersectionConstraint(model, rooms):
         room.getLeft(), room.width, room.getRight(), 'room 1 ') for room in rooms]
     model.AddNoOverlap2D(colIntervals, rowIntervals)
 
+def VisualizeApartments(model, rooms):
+    visualizedApartment = [[0 for i in range(10)] for j in range(10)]
+    for index, room in enumerate(rooms):
+        startRow = solver.Value(room.startRow)
+        startCol = solver.Value(room.startCol)
+        roomHeight = solver.Value(room.height)
+        roomWidth = solver.Value(room.width)
+        for i in range(startRow, startRow + roomHeight):
+            for j in range(startCol, startCol + roomWidth):
+                visualizedApartment[i][j] = index + 1
+
+    for row in visualizedApartment:
+        print(row)
+
+
 
 nOfApartments = 1
 nOfRooms = 4
@@ -92,6 +107,5 @@ model.AddMinEquality(apartment_startCol, leftBorders)
 # model.AddMaxEquality(apartment_endCol, rightBorders)
 model.AddMinEquality(apartment_startRow, upBorders)
 # model.AddMinEquality(apartment_endRow, downBorders)
-for room in rooms:
-    print(solver.Value(room.startRow), solver.Value(room.startCol),
-          solver.Value(room.width), solver.Value(room.height))
+
+VisualizeApartments(model, rooms)
