@@ -11,13 +11,20 @@ class Rectangle:
 
     def __init__(self, minArea=1, width=0, height=0):
         # Name the variable names in the model properly.
-        self.width = model.NewIntVar(1, maxDim, 'Width, room: %d' % Rectangle.roomId)
-        self.height = model.NewIntVar(1, maxDim, 'Height, room: %d' % Rectangle.roomId)
-        self.area = model.NewIntVar(minArea, maxDim * maxDim, 'Area, room: %d' % Rectangle.roomId)
-        self.startRow = model.NewIntVar(0, maxDim, 'Starting row, room: %d' % Rectangle.roomId)
-        self.startCol = model.NewIntVar(0, maxDim, 'Starting col, room: %d' % Rectangle.roomId)
-        self.endRow = model.NewIntVar(0, maxDim, 'Ending row, room: %d' % Rectangle.roomId)
-        self.endCol = model.NewIntVar(0, maxDim, 'Ending col, room: %d' % Rectangle.roomId)
+        self.width = model.NewIntVar(
+            1, maxDim, 'Width, room: %d' % Rectangle.roomId)
+        self.height = model.NewIntVar(
+            1, maxDim, 'Height, room: %d' % Rectangle.roomId)
+        self.area = model.NewIntVar(
+            minArea, maxDim * maxDim, 'Area, room: %d' % Rectangle.roomId)
+        self.startRow = model.NewIntVar(
+            0, maxDim, 'Starting row, room: %d' % Rectangle.roomId)
+        self.startCol = model.NewIntVar(
+            0, maxDim, 'Starting col, room: %d' % Rectangle.roomId)
+        self.endRow = model.NewIntVar(
+            0, maxDim, 'Ending row, room: %d' % Rectangle.roomId)
+        self.endCol = model.NewIntVar(
+            0, maxDim, 'Ending col, room: %d' % Rectangle.roomId)
 
         self.addGenericConstraints(width, height)
 
@@ -58,6 +65,24 @@ class Rectangle:
     def getBottom(self):
         return self.endRow
 
+    def isRowBlockedBy(self, other):
+        return other.endRow >= self.endRow and other.startRow <= self.startRow
+
+    def isColumnBlockedBy(self, other):
+        return other.endCol >= self.endCol and other.startCol <= self.startCol
+
+    def isBlockedBy(self, other):
+        if self.endCol == other.startCol and self.isRowBlockedBy(other):
+            return True
+        if self.startCol == other.endCol and self.isRowBlockedBy(other):
+            return True
+        if self.startRow == other.endRow and self.isColumnBlockedBy(other):
+            return True
+        if self.endRow == other.startRow and self.isColumnBlockedBy(other):
+            return True
+
+        return False
+
 
 def VisualizeApartments(apartment, rooms):
     visualizedApartment = [[0 for i in range(solver.Value(
@@ -76,6 +101,8 @@ def VisualizeApartments(apartment, rooms):
 
 # This method sets the relation between the start and end (rows/columns)
 # by adding the |AddNoOverlap2D| constraint to the model.
+
+
 def AddNoIntersectionConstraint(rooms):
     rowIntervals = [model.NewIntervalVar(
         room.getTop(), room.height, room.getBottom(), 'room %d' % (roomNum + 1)) for roomNum, room in enumerate(rooms)]
@@ -91,6 +118,7 @@ def GetBorders(rooms):
     bottomBorders = [rooms[i].getBottom() for i in range(nOfRooms)]
     return leftBorders, rightBorders, topBorders, bottomBorders
 
+
 def ConstraintApartmentDimensions(apartment):
     leftBorders, rightBorders, topBorders, bottomBorders = GetBorders(rooms)
 
@@ -99,13 +127,33 @@ def ConstraintApartmentDimensions(apartment):
     model.AddMinEquality(apartment.getTop(), topBorders)
     model.AddMaxEquality(apartment.getBottom(), bottomBorders)
 
+
+def ConstraintApartmentCorridor(rooms, apartment):
+    for i in range(len(rooms)):
+        room = rooms[i]
+        tmp = []
+        flag = model.NewBoolVar("b")
+        # Checking with apartment is wrong here.
+        #model.Add(room.isBlockedBy(apartment)).OnlyEnforceIf(flag)
+        #model.Add(not(room.isBlockedBy(apartment))).OnlyEnforceIf(flag.Not())
+        #tmp.append(flag)
+        for j in range(len(rooms)):
+            if i == j:
+                continue
+            otherRoom = rooms[j]
+            otherFlag = model.NewBoolVar("b")
+            model.Add(room.isBlockedBy(otherRoom)).OnlyEnforceIf(otherFlag)
+            model.Add(not(room.isBlockedBy(otherRoom))).OnlyEnforceIf(otherFlag.Not())
+            tmp.append(otherFlag)
+        print(tmp)
+        #model.Add(sum(tmp) <= 3)
 ########################   Main Method Starts Here   ########################
 
 ########################   Process Future Input Here ########################
 
 
 nOfApartments = 1
-nOfRooms = 4
+nOfRooms = 7
 rooms = []
 
 
@@ -118,11 +166,12 @@ for i in range(nOfRooms):
 
 ########################   Process Future Input Here ########################
 
-AddNoIntersectionConstraint(rooms)
-
 apartment = Rectangle()
 
+AddNoIntersectionConstraint(rooms)
+#ConstraintApartmentCorridor(rooms, apartment)
 ConstraintApartmentDimensions(apartment)
+
 
 model.Minimize(apartment.area)
 solver = cp_model.CpSolver()
