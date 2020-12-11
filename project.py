@@ -73,7 +73,7 @@ class Rectangle:
             return True
         if self.startCol >= startCol and self.endCol <= endCol: # ob mb me oe
             return True
-        if self.startCol <= startCol and self.endCol >= startCol and self.endCol <= endCol: # mb ob me oe
+        if self.startCol <= startCol and self.endCol >= startCol: # mb ob me
             return True
         if self.startCol >= startCol and self.startCol <= endCol: # ob mb oe
             return True
