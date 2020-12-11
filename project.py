@@ -78,14 +78,32 @@ class Rectangle:
         if startCol >= self.startCol and startCol <= self.endCol:
             return True
         return False
+    
+    def roomExistsWithinRows(self, startRow, endRow):
+        if self.startRow <= endRow and self.endRow >= endRow:
+            return True
+        if self.startRow >= startRow and self.startRow <= endRow:
+            return True
+        if self.endRow >= startRow and self.endRow <= endRow:
+            return True
+        if startRow >= self.startRow and startRow <= self.endRow:
+            return True
+        return False
 
     def addDiningRoomConstraints(self):
         for room in rooms:
             if room.roomType == Room.KITCHEN:
                 #print(self.roomType, room.roomType)
                 # Once this constraints starts to work, add conditions for columns just like the row ones. 
-                model.Add((self.startRow == room.endRow and self.roomExistsWithinColumns(room.startCol, room.endCol)) or (
-                    self.endRow == room.startRow and self.roomExistsWithinColumns(room.startCol, room.endCol)))
+                #model.Add((self.startRow == room.endRow and self.roomExistsWithinColumns(room.startCol, room.endCol)) or (
+                #    self.endRow == room.startRow and self.roomExistsWithinColumns(room.startCol, room.endCol)))
+                #flagRows = model.NewBoolVar('rows')
+                #flagColumns = model.NewBoolVar('columns')
+                #model.Add(flagRows == 1).OnlyEnforceIf(self.roomExistsWithinRows(room.startRow, room.endRow) == True)
+                #model.Add(flagColumns == 1).OnlyEnforceIf(self.roomExistsWithinColumns(room.startCol, room.endCol) == True)
+                model.Add(self.startCol == room.endCol or self.endCol == room.startCol).OnlyEnforceIf(self.roomExistsWithinRows(room.startRow, room.endRow) == True)
+                model.Add(self.startRow == room.endRow or self.endRow == room.startRow).OnlyEnforceIf(self.roomExistsWithinColumns(room.startCol, room.endCol) == True)
+                #model.Add(flagRows + flagColumns >= 1)
                 break
 
     def toString(self):
@@ -115,15 +133,15 @@ class Rectangle:
 
 def VisualizeApartments(apartment, rooms):
     visualizedApartment = [[0 for i in range(solver.Value(
-        apartment.width))] for j in range(solver.Value(apartment.height))]
+        apartment.width)+10)] for j in range(solver.Value(apartment.height))]
+    print(solver.Value(apartment.width), solver.Value(apartment.height))
     for index, room in enumerate(rooms):
         startRow = solver.Value(room.startRow)
         startCol = solver.Value(room.startCol)
         roomHeight = solver.Value(room.height)
         roomWidth = solver.Value(room.width)
-        if room.roomType == Room.DININGROOM or room.roomType == Room.KITCHEN:
-            print(index + 1, room.roomType, startRow, solver.Value(
-                room.endRow), startCol, solver.Value(room.endCol))
+        #if room.roomType == Room.DININGROOM or room.roomType == Room.KITCHEN:
+        print(index + 1, room.roomType, startRow, solver.Value(room.endRow), startCol, solver.Value(room.endCol))
         for i in range(startRow, startRow + roomHeight):
             for j in range(startCol, startCol + roomWidth):
                 visualizedApartment[i][j] = index + 1
@@ -174,9 +192,9 @@ minArea = [i for i in range(nOfRooms)]
 
 for i in range(nOfRooms):
     roomType = Room.OTHER
-    if i == 4:
+    if i == 1:
         roomType = Room.DININGROOM
-    elif i == 1:
+    elif i == 0:
         roomType = Room.KITCHEN
     rooms.append(
         Rectangle(roomType, minArea[i], 2 if i == 0 else 0, 3 if i == 1 else 2))
