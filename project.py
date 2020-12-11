@@ -69,9 +69,13 @@ class Rectangle:
             self.addDiningRoomConstraints()
 
     def roomExistsWithinColumns(self, startCol, endCol):
-        if self.startCol <= startCol and self.endCol >= startCol:
+        if self.startCol <= startCol and self.endCol >= startCol: # mb ob oe me
             return True
-        if self.startCol >= startCol and self.endCol <= endCol:
+        if self.startCol >= startCol and self.endCol <= endCol: # ob mb me oe
+            return True
+        if self.startCol <= startCol and self.endCol >= startCol and self.endCol <= endCol: # mb ob me oe
+            return True
+        if self.startCol >= startCol and self.startCol <= endCol: # ob mb oe
             return True
         return False
 
