@@ -4,7 +4,7 @@ from __future__ import print_function
 from ortools.sat.python import cp_model
 
 from enum import Enum
-
+from random import randint
 maxDim = 10
 
 
@@ -69,41 +69,40 @@ class Rectangle:
             self.addDiningRoomConstraints()
 
     def roomExistsWithinColumns(self, startCol, endCol):
-        if self.startCol <= endCol and self.endCol >= endCol:
-            return True
-        if self.startCol >= startCol and self.startCol <= endCol:
-            return True
-        if self.endCol >= startCol and self.endCol <= endCol:
-            return True
-        if startCol >= self.startCol and startCol <= self.endCol:
-            return True
-        return False
-    
+        b1 = model.NewBoolVar('')
+        b2 = model.NewBoolVar('')
+        b3 = model.NewBoolVar('')
+        b4 = model.NewBoolVar('')
+        model.Add(self.startCol <= endCol and self.endCol >=
+                  endCol).OnlyEnforceIf(b1)
+        model.Add(self.startCol >= startCol and self.startCol <=
+                  endCol).OnlyEnforceIf(b2)
+        model.Add(self.endCol >= startCol and self.endCol <=
+                  endCol).OnlyEnforceIf(b3)
+        model.Add(startCol >= self.startCol and startCol <=
+                  self.endCol).OnlyEnforceIf(b4)
+        model.AddBoolOr([b1, b2, b3, b4])
+
     def roomExistsWithinRows(self, startRow, endRow):
-        if self.startRow <= endRow and self.endRow >= endRow:
-            return True
-        if self.startRow >= startRow and self.startRow <= endRow:
-            return True
-        if self.endRow >= startRow and self.endRow <= endRow:
-            return True
-        if startRow >= self.startRow and startRow <= self.endRow:
-            return True
-        return False
+        b1 = model.NewBoolVar('')
+        b2 = model.NewBoolVar('')
+        b3 = model.NewBoolVar('')
+        b4 = model.NewBoolVar('')
+        model.Add(self.startRow <= endRow and self.endRow >=
+                  endRow).OnlyEnforceIf(b1)
+        model.Add(self.startRow >= startRow and self.startRow <=
+                  endRow).OnlyEnforceIf(b2)
+        model.Add(self.endRow >= startRow and self.endRow <=
+                  endRow).OnlyEnforceIf(b3)
+        model.Add(startRow >= self.startRow and startRow <=
+                  self.endRow).OnlyEnforceIf(b4)
+        model.AddBoolOr([b1, b2, b3, b4])
 
     def addDiningRoomConstraints(self):
         for room in rooms:
             if room.roomType == Room.KITCHEN:
-                #print(self.roomType, room.roomType)
-                # Once this constraints starts to work, add conditions for columns just like the row ones. 
-                #model.Add((self.startRow == room.endRow and self.roomExistsWithinColumns(room.startCol, room.endCol)) or (
-                #    self.endRow == room.startRow and self.roomExistsWithinColumns(room.startCol, room.endCol)))
-                #flagRows = model.NewBoolVar('rows')
-                #flagColumns = model.NewBoolVar('columns')
-                #model.Add(flagRows == 1).OnlyEnforceIf(self.roomExistsWithinRows(room.startRow, room.endRow) == True)
-                #model.Add(flagColumns == 1).OnlyEnforceIf(self.roomExistsWithinColumns(room.startCol, room.endCol) == True)
-                model.Add(self.startCol == room.endCol or self.endCol == room.startCol).OnlyEnforceIf(self.roomExistsWithinRows(room.startRow, room.endRow) == True)
-                model.Add(self.startRow == room.endRow or self.endRow == room.startRow).OnlyEnforceIf(self.roomExistsWithinColumns(room.startCol, room.endCol) == True)
-                #model.Add(flagRows + flagColumns >= 1)
+                self.roomExistsWithinColumns(room.startCol, room.endCol)
+                self.roomExistsWithinRows(room.startRow, room.endRow)
                 break
 
     def toString(self):
@@ -140,8 +139,9 @@ def VisualizeApartments(apartment, rooms):
         startCol = solver.Value(room.startCol)
         roomHeight = solver.Value(room.height)
         roomWidth = solver.Value(room.width)
-        #if room.roomType == Room.DININGROOM or room.roomType == Room.KITCHEN:
-        print(index + 1, room.roomType, startRow, solver.Value(room.endRow), startCol, solver.Value(room.endCol))
+        # if room.roomType == Room.DININGROOM or room.roomType == Room.KITCHEN:
+        print(index + 1, room.roomType, startRow,
+              solver.Value(room.endRow), startCol, solver.Value(room.endCol))
         for i in range(startRow, startRow + roomHeight):
             for j in range(startCol, startCol + roomWidth):
                 visualizedApartment[i][j] = index + 1
