@@ -73,14 +73,32 @@ class Rectangle:
         b2 = model.NewBoolVar('')
         b3 = model.NewBoolVar('')
         b4 = model.NewBoolVar('')
-        model.Add(self.startCol <= endCol and self.endCol >=
-                  endCol).OnlyEnforceIf(b1)
-        model.Add(self.startCol >= startCol and self.startCol <=
-                  endCol).OnlyEnforceIf(b2)
-        model.Add(self.endCol >= startCol and self.endCol <=
-                  endCol).OnlyEnforceIf(b3)
-        model.Add(startCol >= self.startCol and startCol <=
-                  self.endCol).OnlyEnforceIf(b4)
+        # model.Add(self.startCol <= endCol and self.endCol >=
+        #           endCol).OnlyEnforceIf(b1)
+        b11 = model.NewBoolVar('')
+        model.Add(self.startCol <= endCol).OnlyEnforceIf(b11)
+        b12 = model.NewBoolVar('')
+        model.Add(self.endCol >=
+                  endCol).OnlyEnforceIf(b12)
+        model.AddBoolAnd([b11, b12]).OnlyEnforceIf(b1)
+        b21 = model.NewBoolVar('')
+        b22 = model.NewBoolVar('')
+        model.Add(self.startCol >= startCol).OnlyEnforceIf(b21)
+        model.Add(self.startCol <=
+                  endCol).OnlyEnforceIf(b22)
+        model.AddBoolAnd([b21, b22]).OnlyEnforceIf(b2)
+        b31 = model.NewBoolVar('')
+        b32 = model.NewBoolVar('')
+        model.Add(self.endCol >= startCol).OnlyEnforceIf(b31)
+        model.Add(self.endCol <=
+                  endCol).OnlyEnforceIf(b32)
+        model.AddBoolAnd([b31, b32]).OnlyEnforceIf(b3)
+        b41 = model.NewBoolVar('')
+        b42 = model.NewBoolVar('')
+        model.Add(startCol >= self.startCol).OnlyEnforceIf(b41)
+        model.Add(startCol <=
+                  self.endCol).OnlyEnforceIf(b42)
+        model.AddBoolAnd([b41, b42]).OnlyEnforceIf(b4)
         model.AddBoolOr([b1, b2, b3, b4])
 
     def roomExistsWithinRows(self, startRow, endRow):
@@ -88,14 +106,30 @@ class Rectangle:
         b2 = model.NewBoolVar('')
         b3 = model.NewBoolVar('')
         b4 = model.NewBoolVar('')
-        model.Add(self.startRow <= endRow and self.endRow >=
-                  endRow).OnlyEnforceIf(b1)
-        model.Add(self.startRow >= startRow and self.startRow <=
-                  endRow).OnlyEnforceIf(b2)
-        model.Add(self.endRow >= startRow and self.endRow <=
-                  endRow).OnlyEnforceIf(b3)
-        model.Add(startRow >= self.startRow and startRow <=
-                  self.endRow).OnlyEnforceIf(b4)
+        b11 = model.NewBoolVar('')
+        b12 = model.NewBoolVar('')
+        model.Add(self.startRow <= endRow).OnlyEnforceIf(b11)
+        model.Add(self.endRow >=
+                  endRow).OnlyEnforceIf(b12)
+        model.AddBoolAnd([b11, b12]).OnlyEnforceIf(b1)
+        b21 = model.NewBoolVar('')
+        b22 = model.NewBoolVar('')
+        model.Add(self.startRow >= startRow).OnlyEnforceIf(b21)
+        model.Add(self.startRow <=
+                  endRow).OnlyEnforceIf(b22)
+        model.AddBoolAnd([b21, b22]).OnlyEnforceIf(b2)
+        b31 = model.NewBoolVar('')
+        b32 = model.NewBoolVar('')
+        model.Add(self.endRow >= startRow).OnlyEnforceIf(b31)
+        model.Add(self.endRow <=
+                  endRow).OnlyEnforceIf(b32)
+        model.AddBoolAnd([b31, b32]).OnlyEnforceIf(b3)
+        b41 = model.NewBoolVar('')
+        b42 = model.NewBoolVar('')
+        model.Add(startRow >= self.startRow).OnlyEnforceIf(b41)
+        model.Add(startRow <=
+                  self.endRow).OnlyEnforceIf(b42)
+        model.AddBoolAnd([b41, b42]).OnlyEnforceIf(b4)
         model.AddBoolOr([b1, b2, b3, b4])
 
     def addDiningRoomConstraints(self):
@@ -188,8 +222,8 @@ rooms = []
 
 
 model = cp_model.CpModel()
-minArea = [i for i in range(nOfRooms)]
-
+minArea = [randint(1, 5) for i in range(nOfRooms)]
+print(minArea)
 for i in range(nOfRooms):
     roomType = Room.OTHER
     if i == 1:
@@ -197,7 +231,7 @@ for i in range(nOfRooms):
     elif i == 0:
         roomType = Room.KITCHEN
     rooms.append(
-        Rectangle(roomType, minArea[i], 2 if i == 0 else 0, 3 if i == 1 else 2))
+        Rectangle(roomType, minArea[i]))
 
 
 ########################   Process Future Input Here ########################
