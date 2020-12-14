@@ -11,7 +11,8 @@ maxDim = 10
 class Room(Enum):
     DININGROOM = 1
     KITCHEN = 2
-    OTHER = 3
+    MINOR_BATHROOM = 3
+    OTHER = 4
 
 
 class BuildingSide(Enum):
@@ -29,7 +30,7 @@ bottomSide = BuildingSide.NONE
 class Rectangle:
     roomId = 1
 
-    def __init__(self, roomType, minArea=1, width=0, height=0):
+    def __init__(self, roomType, minArea=1, width=0, height=0, adjacentTo=-1):
         # Name the variable names in the model properly.
         self.width = model.NewIntVar(
             1, maxDim, 'Width, room: %d' % Rectangle.roomId)
@@ -48,9 +49,7 @@ class Rectangle:
         self.roomType = roomType
 
         self.addGenericConstraints(width, height)
-
-        self.addRoomConstraints()
-
+        self.adjacentTo = adjacentTo
         Rectangle.roomId += 1
 
     def addGenericConstraints(self, width, height):
@@ -65,8 +64,13 @@ class Rectangle:
         model.AddMultiplicationEquality(self.area, [self.width, self.height])
 
     def addRoomConstraints(self):
+        adjacentTo = self.adjacentTo
         if self.roomType == Room.DININGROOM:
-            self.addDiningRoomConstraints()
+            for i in range(len(rooms)):
+                if(rooms[i].roomType == Room.KITCHEN):
+                    adjacentTo = i
+        if adjacentTo != -1:
+            AddAdjacencyConstraint(self, rooms[adjacentTo])
 
     def roomExistsWithinColumns(self, startCol, endCol):
 
@@ -77,12 +81,12 @@ class Rectangle:
         AddIntersectionBetweenEdges(
             [self.startRow, self.endRow], [startRow, endRow])
 
-    def addDiningRoomConstraints(self):
-        for room in rooms:
-            if room.roomType == Room.KITCHEN:
-                self.roomExistsWithinColumns(room.startCol, room.endCol)
-                self.roomExistsWithinRows(room.startRow, room.endRow)
-                break
+    # def addDiningRoomConstraints(self):
+    #     for room in rooms:
+    #         if room.roomType == Room.KITCHEN:
+    #             self.roomExistsWithinColumns(room.startCol, room.endCol)
+    #             self.roomExistsWithinRows(room.startRow, room.endRow)
+    #             break
 
     def toString(self):
         print("Rectangle coordinates: (%d,%d)" %
@@ -169,6 +173,11 @@ def ConstraintApartmentDimensions(apartment):
     model.AddMinEquality(apartment.getTop(), topBorders)
     model.AddMaxEquality(apartment.getBottom(), bottomBorders)
 
+
+def AddAdjacencyConstraint(room, adjacentRoom):
+    room.roomExistsWithinColumns(adjacentRoom.startCol, adjacentRoom.endCol)
+    room.roomExistsWithinRows(adjacentRoom.startRow, adjacentRoom.endRow)
+
 ########################   Main Method Starts Here   ########################
 
 ########################   Process Future Input Here ########################
@@ -185,15 +194,19 @@ minArea = [randint(1, 5) for i in range(nOfRooms)]
 print(minArea)
 for i in range(nOfRooms):
     roomType = Room.OTHER
-    if i > 0:
+    if i == 1:
         roomType = Room.DININGROOM
     elif i == 0:
         roomType = Room.KITCHEN
-    rooms.append(
-        Rectangle(roomType, minArea[i]))
+    elif i == 2:
+        roomType = Room.MINOR_BATHROOM
 
+    rooms.append(
+        Rectangle(roomType, minArea[i], adjacentTo=(0 if i == 2 else -1)))
 
 ########################   Process Future Input Here ########################
+for room in rooms:
+    room.addRoomConstraints()
 
 AddNoIntersectionConstraint(rooms)
 
