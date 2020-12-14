@@ -69,68 +69,13 @@ class Rectangle:
             self.addDiningRoomConstraints()
 
     def roomExistsWithinColumns(self, startCol, endCol):
-        b1 = model.NewBoolVar('')
-        b2 = model.NewBoolVar('')
-        b3 = model.NewBoolVar('')
-        b4 = model.NewBoolVar('')
-        # model.Add(self.startCol <= endCol and self.endCol >=
-        #           endCol).OnlyEnforceIf(b1)
-        b11 = model.NewBoolVar('')
-        model.Add(self.startCol <= endCol).OnlyEnforceIf(b11)
-        b12 = model.NewBoolVar('')
-        model.Add(self.endCol >=
-                  endCol).OnlyEnforceIf(b12)
-        model.AddBoolAnd([b11, b12]).OnlyEnforceIf(b1)
-        b21 = model.NewBoolVar('')
-        b22 = model.NewBoolVar('')
-        model.Add(self.startCol >= startCol).OnlyEnforceIf(b21)
-        model.Add(self.startCol <=
-                  endCol).OnlyEnforceIf(b22)
-        model.AddBoolAnd([b21, b22]).OnlyEnforceIf(b2)
-        b31 = model.NewBoolVar('')
-        b32 = model.NewBoolVar('')
-        model.Add(self.endCol >= startCol).OnlyEnforceIf(b31)
-        model.Add(self.endCol <=
-                  endCol).OnlyEnforceIf(b32)
-        model.AddBoolAnd([b31, b32]).OnlyEnforceIf(b3)
-        b41 = model.NewBoolVar('')
-        b42 = model.NewBoolVar('')
-        model.Add(startCol >= self.startCol).OnlyEnforceIf(b41)
-        model.Add(startCol <=
-                  self.endCol).OnlyEnforceIf(b42)
-        model.AddBoolAnd([b41, b42]).OnlyEnforceIf(b4)
-        model.AddBoolOr([b1, b2, b3, b4])
+
+        AddIntersectionBetweenEdges(
+            [self.startCol, self.endCol], [startCol, endCol])
 
     def roomExistsWithinRows(self, startRow, endRow):
-        b1 = model.NewBoolVar('')
-        b2 = model.NewBoolVar('')
-        b3 = model.NewBoolVar('')
-        b4 = model.NewBoolVar('')
-        b11 = model.NewBoolVar('')
-        b12 = model.NewBoolVar('')
-        model.Add(self.startRow <= endRow).OnlyEnforceIf(b11)
-        model.Add(self.endRow >=
-                  endRow).OnlyEnforceIf(b12)
-        model.AddBoolAnd([b11, b12]).OnlyEnforceIf(b1)
-        b21 = model.NewBoolVar('')
-        b22 = model.NewBoolVar('')
-        model.Add(self.startRow >= startRow).OnlyEnforceIf(b21)
-        model.Add(self.startRow <=
-                  endRow).OnlyEnforceIf(b22)
-        model.AddBoolAnd([b21, b22]).OnlyEnforceIf(b2)
-        b31 = model.NewBoolVar('')
-        b32 = model.NewBoolVar('')
-        model.Add(self.endRow >= startRow).OnlyEnforceIf(b31)
-        model.Add(self.endRow <=
-                  endRow).OnlyEnforceIf(b32)
-        model.AddBoolAnd([b31, b32]).OnlyEnforceIf(b3)
-        b41 = model.NewBoolVar('')
-        b42 = model.NewBoolVar('')
-        model.Add(startRow >= self.startRow).OnlyEnforceIf(b41)
-        model.Add(startRow <=
-                  self.endRow).OnlyEnforceIf(b42)
-        model.AddBoolAnd([b41, b42]).OnlyEnforceIf(b4)
-        model.AddBoolOr([b1, b2, b3, b4])
+        AddIntersectionBetweenEdges(
+            [self.startRow, self.endRow], [startRow, endRow])
 
     def addDiningRoomConstraints(self):
         for room in rooms:
@@ -164,6 +109,18 @@ class Rectangle:
         return self.endRow
 
 
+def AddIntersectionBetweenEdges(a, b):
+    l1 = a[0]
+    r1 = a[1]
+    l2 = b[0]
+    r2 = b[1]
+    l = model.NewIntVar(0, maxDim, '')  # l>=l1 and l>=l2
+    model.AddMaxEquality(l, [l1, l2])
+    r = model.NewIntVar(0, maxDim, '')  # r<=r1 and r<=r2
+    model.AddMinEquality(r, [r1, r2])
+    model.Add(l <= r)
+
+
 def VisualizeApartments(apartment, rooms):
     visualizedApartment = [[0 for i in range(solver.Value(
         apartment.width)+10)] for j in range(solver.Value(apartment.height))]
@@ -192,6 +149,7 @@ def AddNoIntersectionConstraint(rooms):
         room.getTop(), room.height, room.getBottom(), 'room %d' % (roomNum + 1)) for roomNum, room in enumerate(rooms)]
     colIntervals = [model.NewIntervalVar(
         room.getLeft(), room.width, room.getRight(), 'room %d' % (roomNum + 1)) for roomNum, room in enumerate(rooms)]
+    # how could this be optimized?
     model.AddNoOverlap2D(colIntervals, rowIntervals)
 
 
@@ -223,10 +181,11 @@ rooms = []
 
 model = cp_model.CpModel()
 minArea = [randint(1, 5) for i in range(nOfRooms)]
+# minArea = [4, 4, 1, 4, 4]
 print(minArea)
 for i in range(nOfRooms):
     roomType = Room.OTHER
-    if i == 1:
+    if i > 0:
         roomType = Room.DININGROOM
     elif i == 0:
         roomType = Room.KITCHEN
@@ -247,7 +206,7 @@ solver = cp_model.CpSolver()
 status = solver.Solve(model)
 print(solver.StatusName())
 print(solver.Value(apartment.area))
-
+print('time = ', solver.WallTime())
 VisualizeApartments(apartment, rooms)
 
 ########################   Main Method Ends Here   ##########################
