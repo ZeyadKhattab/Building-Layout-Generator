@@ -12,7 +12,9 @@ class Room(Enum):
     DININGROOM = 1
     KITCHEN = 2
     MINOR_BATHROOM = 3
-    OTHER = 4
+    DRESSING_ROOM = 4
+    BEDROOM = 5
+    OTHER = 6
 
 
 class BuildingSide(Enum):
@@ -127,19 +129,21 @@ def AddIntersectionBetweenEdges(a, b):
 
 def VisualizeApartments(apartment, rooms):
     visualizedApartment = [[0 for i in range(solver.Value(
-        apartment.width)+10)] for j in range(solver.Value(apartment.height))]
+        apartment.width))] for j in range(solver.Value(apartment.height))]
     print(solver.Value(apartment.width), solver.Value(apartment.height))
+    apartment_startRow = solver.Value(apartment.startRow)
+    apartment_startCol = solver.Value(apartment.startCol)
     for index, room in enumerate(rooms):
         startRow = solver.Value(room.startRow)
         startCol = solver.Value(room.startCol)
         roomHeight = solver.Value(room.height)
         roomWidth = solver.Value(room.width)
-        # if room.roomType == Room.DININGROOM or room.roomType == Room.KITCHEN:
         print(index + 1, room.roomType, startRow,
               solver.Value(room.endRow), startCol, solver.Value(room.endCol))
         for i in range(startRow, startRow + roomHeight):
             for j in range(startCol, startCol + roomWidth):
-                visualizedApartment[i][j] = index + 1
+                visualizedApartment[i - apartment_startRow][j -
+                                                            apartment_startCol] = index + 1
 
     for row in visualizedApartment:
         print(row)
@@ -194,15 +198,22 @@ minArea = [randint(1, 5) for i in range(nOfRooms)]
 print(minArea)
 for i in range(nOfRooms):
     roomType = Room.OTHER
-    if i == 1:
-        roomType = Room.DININGROOM
-    elif i == 0:
+    adjacentTo = -1
+    if i == 0:
         roomType = Room.KITCHEN
+    elif i == 1:
+        roomType = Room.DININGROOM
     elif i == 2:
         roomType = Room.MINOR_BATHROOM
+        adjacentTo = 0
+    elif i == 3:
+        roomType = Room.BEDROOM
+    elif i == 4:
+        roomType = Room.DRESSING_ROOM
+        adjacentTo = 3
 
     rooms.append(
-        Rectangle(roomType, minArea[i], adjacentTo=(0 if i == 2 else -1)))
+        Rectangle(roomType, minArea[i], adjacentTo))
 
 ########################   Process Future Input Here ########################
 for room in rooms:
