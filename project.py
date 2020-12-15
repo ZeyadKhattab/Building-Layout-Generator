@@ -182,6 +182,80 @@ def AddAdjacencyConstraint(room, adjacentRoom):
     room.roomExistsWithinColumns(adjacentRoom.startCol, adjacentRoom.endCol)
     room.roomExistsWithinRows(adjacentRoom.startRow, adjacentRoom.endRow)
 
+
+def GetGrid(rooms):
+    n = len(rooms)
+    grid = [[model.NewIntVar(-1, n-1, '') for j in range(maxDim)]
+            for i in range(maxDim)]
+    for i in range(maxDim):
+        for j in range(maxDim):
+            intersections = []
+            for index, room in enumerate(rooms):
+
+                # rows
+                greater_than_r1 = model.NewBoolVar('')
+                less_than_r2 = model.NewBoolVar('')
+                model.Add(i >= room.startRow).OnlyEnforceIf(greater_than_r1)
+                model.Add(i < room.startRow).OnlyEnforceIf(
+                    greater_than_r1.Not())
+                # strictly less due to the mapping between continus and discrete systems
+                model.Add(i < room.endRow).OnlyEnforceIf(less_than_r2)
+                model.Add(i >= room.endRow).OnlyEnforceIf(less_than_r2.Not())
+                # cols
+                greater_than_c1 = model.NewBoolVar('')
+                less_than_c2 = model.NewBoolVar('')
+                model.Add(j >= room.startCol).OnlyEnforceIf(greater_than_c1)
+                model.Add(j < room.startCol).OnlyEnforceIf(
+                    greater_than_c1.Not())
+                # strictly less due to the mapping between continus and discrete systems
+                model.Add(j < room.endCol).OnlyEnforceIf(less_than_c2)
+                model.Add(j >= room.endCol).OnlyEnforceIf(less_than_c2.Not())
+                betweenRows = model.NewBoolVar('')
+                model.AddBoolAnd([greater_than_r1, less_than_r2]
+                                 ).OnlyEnforceIf(betweenRows)
+                model.AddBoolOr([greater_than_r1.Not(), less_than_r2.Not()]
+                                ).OnlyEnforceIf(betweenRows.Not())
+                betweenCols = model.NewBoolVar('')
+                model.AddBoolAnd([greater_than_c1, less_than_c2]
+                                 ).OnlyEnforceIf(betweenCols)
+                model.AddBoolOr([greater_than_c1.Not(), less_than_c2.Not()]
+                                ).OnlyEnforceIf(betweenCols.Not())
+
+                model.Add(grid[i][j] == index).OnlyEnforceIf(
+                    [betweenRows, betweenCols])
+                intersection = model.NewBoolVar('')
+                model.Add(intersection == 1).OnlyEnforceIf(
+                    [betweenRows, betweenCols])
+                model.AddImplication(betweenCols.Not(), intersection.Not())
+                model.AddImplication(betweenRows.Not(), intersection.Not())
+                intersections.append(intersection)
+            empty = model.NewBoolVar('')
+            model.Add(sum(intersections) == 0).OnlyEnforceIf(empty)
+            model.Add(sum(intersections) > 0).OnlyEnforceIf(empty.Not())
+            model.Add(grid[i][j] == -1).OnlyEnforceIf(empty)
+    return grid
+
+
+############ Debugging Functions ##################################
+
+
+def CheckGrid(rooms, grid):
+    """Checks that the creeated Int var grid is equal to the visualized grid."""
+    visited = [[False for j in range(maxDim)] for i in range(maxDim)]
+    for index, room in enumerate(rooms):
+        r1 = solver.Value(room.startRow)
+        r2 = solver.Value(room.endRow)
+        c1 = solver.Value(room.startCol)
+        c2 = solver.Value(room.endCol)
+        for r in range(r1, r2):
+            for c in range(c1, c2):
+                curr = solver.Value(grid[r][c])
+                assert(curr == index)
+                visited[r][c] = True
+    for i in range(maxDim):
+        for j in range(maxDim):
+            assert(visited[i][j] or solver.Value(grid[i][j]) == -1)
+
 ########################   Main Method Starts Here   ########################
 
 ########################   Process Future Input Here ########################
@@ -194,7 +268,7 @@ rooms = []
 
 model = cp_model.CpModel()
 minArea = [randint(1, 5) for i in range(nOfRooms)]
-# minArea = [4, 4, 1, 4, 4]
+# minArea = [3, 4, 4, 3, 3]
 print(minArea)
 for i in range(nOfRooms):
     roomType = Room.OTHER
@@ -226,6 +300,7 @@ apartment = Rectangle(Room.OTHER)
 ConstraintApartmentDimensions(apartment)
 
 model.Minimize(apartment.area)
+grid = GetGrid(rooms)  # currently unused
 solver = cp_model.CpSolver()
 status = solver.Solve(model)
 print(solver.StatusName())
@@ -234,3 +309,7 @@ print('time = ', solver.WallTime())
 VisualizeApartments(apartment, rooms)
 
 ########################   Main Method Ends Here   ##########################
+
+########################  Debuging ################
+
+CheckGrid(rooms, grid)
