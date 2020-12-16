@@ -3,6 +3,8 @@ from __future__ import division
 from __future__ import print_function
 from ortools.sat.python import cp_model
 
+import matplotlib.pyplot as plt
+
 from enum import Enum
 from random import randint
 maxDim = 10
@@ -17,7 +19,12 @@ class Room(Enum):
     DRESSING_ROOM = 4
     BEDROOM = 5
     SUNROOM = 6
-    OTHER = 7
+    CORRIDOR = 7
+    OTHER = 8
+
+
+roomTypeMap = {'Room.DININGROOM': 'DR', 'Room.KITCHEN': 'KT', 'Room.MINOR_BATHROOM': 'MB',
+               'Room.DRESSING_ROOM': 'DRS', 'Room.BEDROOM': 'BD', 'Room.SUNROOM': 'SR', 'Room.CORRIDOR': 'C', 'Room.OTHER': 'X'}
 
 
 class BuildingSide(Enum):
@@ -78,12 +85,11 @@ class Rectangle:
             AddAdjacencyConstraint(self, rooms[adjacentTo])
 
     def roomExistsWithinColumns(self, startCol, endCol):
-
-        AddIntersectionBetweenEdges(
+        return AddIntersectionBetweenEdges(
             [self.startCol, self.endCol], [startCol, endCol])
 
     def roomExistsWithinRows(self, startRow, endRow):
-        AddIntersectionBetweenEdges(
+        return AddIntersectionBetweenEdges(
             [self.startRow, self.endRow], [startRow, endRow])
 
     # def addDiningRoomConstraints(self):
@@ -123,11 +129,15 @@ def AddIntersectionBetweenEdges(a, b):
     r1 = a[1]
     l2 = b[0]
     r2 = b[1]
+    b = model.NewBoolVar('')
     l = model.NewIntVar(0, maxDim, '')
     model.AddMaxEquality(l, [l1, l2])
     r = model.NewIntVar(0, maxDim, '')
     model.AddMinEquality(r, [r1, r2])
     model.Add(l <= r)
+    model.Add(l == r).OnlyEnforceIf(b)
+    model.Add(l != r).OnlyEnforceIf(b.Not())
+    return b
 
 
 def VisualizeApartments(apartment, rooms):
@@ -148,8 +158,8 @@ def VisualizeApartments(apartment, rooms):
                 visualizedApartment[i - apartment_startRow][j -
                                                             apartment_startCol] = index + 1
 
-    for row in visualizedApartment:
-        print(row)
+    plt.imshow(visualizedApartment)
+    plt.show()
 
 # This method sets the relation between the start and end (rows/columns)
 # by adding the |AddNoOverlap2D| constraint to the model.
@@ -182,8 +192,17 @@ def ConstraintApartmentDimensions(apartment):
 
 
 def AddAdjacencyConstraint(room, adjacentRoom):
-    room.roomExistsWithinColumns(adjacentRoom.startCol, adjacentRoom.endCol)
-    room.roomExistsWithinRows(adjacentRoom.startRow, adjacentRoom.endRow)
+    columnsFlag = room.roomExistsWithinColumns(
+        adjacentRoom.startCol, adjacentRoom.endCol)
+    rowsFlag = room.roomExistsWithinRows(
+        adjacentRoom.startRow, adjacentRoom.endRow)
+    model.Add(columnsFlag + rowsFlag < 2)
+
+
+def AddCorridorConstraint(corridor):
+    for room in rooms:
+        if room.roomType != Room.MINOR_BATHROOM and room.roomType != Room.CORRIDOR:
+            AddAdjacencyConstraint(corridor, room)
 
 
 def GetGrid(rooms):
@@ -354,26 +373,44 @@ def PrintSunReachability(sun_reachibility):
 
 def PrintApartment(apartment):
     """Prints all maxDim * maxDim values in constrast to the visualize method which prints only the bounding box."""
-    print('Complete Apartment')
-    for row in grid:
-        for x in row:
-            print(solver.Value(x)+1, end=' ')
+    #print('Complete Apartment')
+    visualizedOutput = [[0 for i in range(maxDim)] for j in range(maxDim)]
+    fig, ax = plt.subplots()
+    for i, row in enumerate(grid):
+        for j, x in enumerate(row):
+            value = solver.Value(x) + 1
+            roomType = rooms[value - 1].roomType
+            if value == 0:
+                roomType = Room.OTHER
+            print(value, end=' ')
+            visualizedOutput[i][j] = value
+            ax.text(
+                j, i, roomTypeMap[str(roomType)], ha='center', va='center')
         print()
+
+    im = ax.imshow(visualizedOutput)
+    fig.tight_layout()
+    plt.show()
+
 ########################   Main Method Starts Here   ########################
 
 ########################   Process Future Input Here ########################
 
 
 nOfApartments = 1
-nOfRooms = 6
+nOfRooms = 6  # + 1  # 1 for the corridor added
 rooms = []
 
 
 model = cp_model.CpModel()
 minArea = [randint(1, 5) for i in range(nOfRooms)]
-# minArea = [3, 5, 1, 1, 3, 5]
+
 print(minArea)
 for i in range(nOfRooms):
+    # if i == nOfRooms - 1:
+    # rooms.append(Rectangle(Room.CORRIDOR))
+    # continue
+
     roomType = Room.OTHER
     adjacentTo = -1
     if i == 0:
@@ -398,6 +435,7 @@ for room in rooms:
     room.addRoomConstraints()
 
 AddNoIntersectionConstraint(rooms)
+# AddCorridorConstraint(rooms[len(rooms) - 1])
 
 apartment = Rectangle(Room.OTHER)
 
@@ -412,7 +450,7 @@ status = solver.Solve(model)
 print(solver.StatusName())
 print(solver.Value(apartment.area))
 print('time = ', solver.WallTime())
-VisualizeApartments(apartment, rooms)
+# VisualizeApartments(apartment, rooms)
 
 ########################   Main Method Ends Here   ##########################
 
@@ -420,5 +458,5 @@ VisualizeApartments(apartment, rooms)
 
 CheckGrid(rooms, grid)
 
-PrintSunReachability(sun_reachability)
+# PrintSunReachability(sun_reachability)
 PrintApartment(apartment)
