@@ -6,6 +6,8 @@ from ortools.sat.python import cp_model
 from enum import Enum
 from random import randint
 maxDim = 10
+DI = [-1, 1, 0, 0]
+DJ = [0, 0, -1, 1]
 
 
 class Room(Enum):
@@ -14,7 +16,8 @@ class Room(Enum):
     MINOR_BATHROOM = 3
     DRESSING_ROOM = 4
     BEDROOM = 5
-    OTHER = 6
+    SUNROOM = 6
+    OTHER = 7
 
 
 class BuildingSide(Enum):
@@ -23,9 +26,9 @@ class BuildingSide(Enum):
     NONE = 3
 
 
-rightSide = BuildingSide.LANDSCAPE
-leftSide = BuildingSide.OPEN
-topSide = BuildingSide.NONE
+rightSide = BuildingSide.OPEN
+leftSide = BuildingSide.LANDSCAPE
+topSide = BuildingSide.LANDSCAPE
 bottomSide = BuildingSide.NONE
 
 
@@ -120,9 +123,9 @@ def AddIntersectionBetweenEdges(a, b):
     r1 = a[1]
     l2 = b[0]
     r2 = b[1]
-    l = model.NewIntVar(0, maxDim, '')  # l>=l1 and l>=l2
+    l = model.NewIntVar(0, maxDim, '')
     model.AddMaxEquality(l, [l1, l2])
-    r = model.NewIntVar(0, maxDim, '')  # r<=r1 and r<=r2
+    r = model.NewIntVar(0, maxDim, '')
     model.AddMinEquality(r, [r1, r2])
     model.Add(l <= r)
 
@@ -236,6 +239,90 @@ def GetGrid(rooms):
     return grid
 
 
+def GetSunReachability(rooms, grid):
+    """A cell is reachable if it's reachable from any of the four directions."""
+    reachable_from = [[[model.NewBoolVar('%i %i %i' % (i, j, k)) for k in range(
+        len(DI))] for j in range(maxDim)] for i in range(maxDim)]
+    reachable = [[model.NewBoolVar('') for j in range(maxDim)]
+                 for i in range(maxDim)]
+    top = 0
+    bottom = 1
+    left = 2
+    right = 3
+    isOpen = 1 if topSide == BuildingSide.OPEN else 0
+    for j in range(maxDim):
+        model.Add(reachable_from[0][j][top] == isOpen)
+
+    isOpen = 1 if bottomSide == BuildingSide.OPEN else 0
+    for j in range(maxDim):
+        model.Add(reachable_from[maxDim - 1][j][bottom] == isOpen)
+
+    isOpen = 1 if leftSide == BuildingSide.OPEN else 0
+    for i in range(maxDim):
+        model.Add(reachable_from[i][0][left] == isOpen)
+
+    isOpen = 1 if rightSide == BuildingSide.OPEN else 0
+    for i in range(maxDim):
+        model.Add(reachable_from[i][maxDim-1][right] == isOpen)
+
+    for i in range(maxDim):
+        for j in range(maxDim):
+            currentCell = []
+            # if (neighbor ==1 and (equal to neighbor or neighbor is empty))
+            for k in range(len(DI)):
+                i2 = i+DI[k]
+                j2 = j+DJ[k]
+                if(i2 < 0 or i2 >= maxDim):
+                    currentCell.append(reachable_from[i][j][k])
+                    continue
+                if(j2 < 0 or j2 >= maxDim):
+                    currentCell.append(reachable_from[i][j][k])
+                    continue
+                equal = model.NewBoolVar('')
+                model.Add(grid[i][j] == grid[i2][j2]).OnlyEnforceIf(equal)
+                model.Add(grid[i][j] != grid[i2][j2]
+                          ).OnlyEnforceIf(equal.Not())
+                neighbor_empty = model.NewBoolVar('')
+                model.Add(grid[i2][j2] == -1).OnlyEnforceIf(neighbor_empty)
+                model.Add(grid[i2][j2] != -
+                          1).OnlyEnforceIf(neighbor_empty.Not())
+                notBlocked = model.NewBoolVar('')
+                model.AddImplication(neighbor_empty, notBlocked)
+                model.AddImplication(equal, notBlocked)
+                model.Add(notBlocked == 0).OnlyEnforceIf(
+                    [equal.Not(), neighbor_empty.Not()])
+                model.Add(reachable_from[i][j][k] == 1).OnlyEnforceIf(
+                    [reachable_from[i2][j2][k], notBlocked])
+                model.AddImplication(
+                    reachable_from[i2][j2][k].Not(), reachable_from[i][j][k].Not())
+                model.AddImplication(
+                    notBlocked.Not(), reachable_from[i][j][k].Not())
+                currentCell.append(reachable_from[i][j][k])
+            model.Add(sum(currentCell) > 0).OnlyEnforceIf(reachable[i][j])
+            model.Add(sum(currentCell) == 0).OnlyEnforceIf(
+                reachable[i][j].Not())
+    return reachable
+
+
+def AddSunRoomConstraints(sun_reachability, grid, rooms):
+    """For each sunrom, one of its cells must be reachable from the sun."""
+    for index, room in enumerate(rooms):
+        if(room.roomType == Room.SUNROOM):
+            isreachable = []
+            for i in range(maxDim):
+                for j in range(maxDim):
+                    # if grid[i][j]==index and sun_reachability[i][j]==1 then true
+                    b = model.NewBoolVar('')
+                    inRoom = model.NewBoolVar('')
+                    model.Add(grid[i][j] == index).OnlyEnforceIf(inRoom)
+                    model.Add(grid[i][j] != index).OnlyEnforceIf(inRoom.Not())
+                    model.Add(b == 1).OnlyEnforceIf(
+                        [inRoom, sun_reachability[i][j]])
+                    model.AddImplication(inRoom.Not(), b.Not())
+                    model.AddImplication(sun_reachability[i][j].Not(), b.Not())
+                    isreachable.append(b)
+            model.Add(sum(isreachable) > 0)
+
 ############ Debugging Functions ##################################
 
 
@@ -256,19 +343,35 @@ def CheckGrid(rooms, grid):
         for j in range(maxDim):
             assert(visited[i][j] or solver.Value(grid[i][j]) == -1)
 
+
+def PrintSunReachability(sun_reachibility):
+    print('Sun Reachability Matrix')
+    for i in range(maxDim):
+        for j in range(maxDim):
+            print(solver.Value(sun_reachability[i][j]), end=' ')
+        print()
+
+
+def PrintApartment(apartment):
+    """Prints all maxDim * maxDim values in constrast to the visualize method which prints only the bounding box."""
+    print('Complete Apartment')
+    for row in grid:
+        for x in row:
+            print(solver.Value(x)+1, end=' ')
+        print()
 ########################   Main Method Starts Here   ########################
 
 ########################   Process Future Input Here ########################
 
 
 nOfApartments = 1
-nOfRooms = 5
+nOfRooms = 6
 rooms = []
 
 
 model = cp_model.CpModel()
 minArea = [randint(1, 5) for i in range(nOfRooms)]
-# minArea = [3, 4, 4, 3, 3]
+# minArea = [3, 5, 1, 1, 3, 5]
 print(minArea)
 for i in range(nOfRooms):
     roomType = Room.OTHER
@@ -285,7 +388,8 @@ for i in range(nOfRooms):
     elif i == 4:
         roomType = Room.DRESSING_ROOM
         adjacentTo = 3
-
+    elif i == 5:
+        roomType = Room.SUNROOM
     rooms.append(
         Rectangle(roomType, minArea[i], adjacentTo))
 
@@ -300,7 +404,9 @@ apartment = Rectangle(Room.OTHER)
 ConstraintApartmentDimensions(apartment)
 
 model.Minimize(apartment.area)
-grid = GetGrid(rooms)  # currently unused
+grid = GetGrid(rooms)
+sun_reachability = GetSunReachability(rooms, grid)
+AddSunRoomConstraints(sun_reachability, grid, rooms)
 solver = cp_model.CpSolver()
 status = solver.Solve(model)
 print(solver.StatusName())
@@ -313,3 +419,6 @@ VisualizeApartments(apartment, rooms)
 ########################  Debuging ################
 
 CheckGrid(rooms, grid)
+
+PrintSunReachability(sun_reachability)
+PrintApartment(apartment)
