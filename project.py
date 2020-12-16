@@ -123,9 +123,9 @@ def AddIntersectionBetweenEdges(a, b):
     r1 = a[1]
     l2 = b[0]
     r2 = b[1]
-    l = model.NewIntVar(0, maxDim, '')  # l>=l1 and l>=l2
+    l = model.NewIntVar(0, maxDim, '')
     model.AddMaxEquality(l, [l1, l2])
-    r = model.NewIntVar(0, maxDim, '')  # r<=r1 and r<=r2
+    r = model.NewIntVar(0, maxDim, '')
     model.AddMinEquality(r, [r1, r2])
     model.Add(l <= r)
 
@@ -240,6 +240,7 @@ def GetGrid(rooms):
 
 
 def GetSunReachability(rooms, grid):
+    """A cell is reachable if it's reachable from any of the four directions."""
     reachable_from = [[[model.NewBoolVar('%i %i %i' % (i, j, k)) for k in range(
         len(DI))] for j in range(maxDim)] for i in range(maxDim)]
     reachable = [[model.NewBoolVar('') for j in range(maxDim)]
@@ -304,9 +305,9 @@ def GetSunReachability(rooms, grid):
 
 
 def AddSunRoomConstraints(sun_reachability, grid, rooms):
+    """For each sunrom, one of its cells must be reachable from the sun."""
     for index, room in enumerate(rooms):
         if(room.roomType == Room.SUNROOM):
-            print('index', index)
             isreachable = []
             for i in range(maxDim):
                 for j in range(maxDim):
@@ -342,6 +343,22 @@ def CheckGrid(rooms, grid):
         for j in range(maxDim):
             assert(visited[i][j] or solver.Value(grid[i][j]) == -1)
 
+
+def PrintSunReachability(sun_reachibility):
+    print('Sun Reachability Matrix')
+    for i in range(maxDim):
+        for j in range(maxDim):
+            print(solver.Value(sun_reachability[i][j]), end=' ')
+        print()
+
+
+def PrintApartment(apartment):
+    """Prints all maxDim * maxDim values in constrast to the visualize method which prints only the bounding box."""
+    print('Complete Apartment')
+    for row in grid:
+        for x in row:
+            print(solver.Value(x)+1, end=' ')
+        print()
 ########################   Main Method Starts Here   ########################
 
 ########################   Process Future Input Here ########################
@@ -354,7 +371,7 @@ rooms = []
 
 model = cp_model.CpModel()
 minArea = [randint(1, 5) for i in range(nOfRooms)]
-# minArea = [3, 4, 4, 3, 3]
+# minArea = [3, 5, 1, 1, 3, 5]
 print(minArea)
 for i in range(nOfRooms):
     roomType = Room.OTHER
@@ -387,7 +404,7 @@ apartment = Rectangle(Room.OTHER)
 ConstraintApartmentDimensions(apartment)
 
 model.Minimize(apartment.area)
-grid = GetGrid(rooms)  # currently unused
+grid = GetGrid(rooms)
 sun_reachability = GetSunReachability(rooms, grid)
 AddSunRoomConstraints(sun_reachability, grid, rooms)
 solver = cp_model.CpSolver()
@@ -402,14 +419,6 @@ VisualizeApartments(apartment, rooms)
 ########################  Debuging ################
 
 CheckGrid(rooms, grid)
-print('------------')
-for row in grid:
-    for x in row:
-        print(solver.Value(x)+1, end=' ')
-    print()
-print('------------')
-for i in range(maxDim):
-    for j in range(maxDim):
-        k = i*maxDim+j
-        print(solver.Value(sun_reachability[i][j]), end=' ')
-    print()
+
+PrintSunReachability(sun_reachability)
+PrintApartment(apartment)
