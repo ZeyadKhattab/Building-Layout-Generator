@@ -192,8 +192,10 @@ def ConstraintApartmentDimensions(apartment):
 
 
 def AddAdjacencyConstraint(room, adjacentRoom):
-    columnsFlag = room.roomExistsWithinColumns(adjacentRoom.startCol, adjacentRoom.endCol)
-    rowsFlag = room.roomExistsWithinRows(adjacentRoom.startRow, adjacentRoom.endRow)
+    columnsFlag = room.roomExistsWithinColumns(
+        adjacentRoom.startCol, adjacentRoom.endCol)
+    rowsFlag = room.roomExistsWithinRows(
+        adjacentRoom.startRow, adjacentRoom.endRow)
     model.Add(columnsFlag + rowsFlag < 2)
 
 
@@ -396,7 +398,7 @@ def PrintApartment(apartment):
 
 
 nOfApartments = 1
-nOfRooms = 6 #+ 1  # 1 for the corridor added
+nOfRooms = 6  # + 1  # 1 for the corridor added
 rooms = []
 
 
@@ -406,8 +408,8 @@ minArea = [randint(1, 5) for i in range(nOfRooms)]
 print(minArea)
 for i in range(nOfRooms):
     # if i == nOfRooms - 1:
-        # rooms.append(Rectangle(Room.CORRIDOR))
-        # continue
+    # rooms.append(Rectangle(Room.CORRIDOR))
+    # continue
 
     roomType = Room.OTHER
     adjacentTo = -1
