@@ -14,7 +14,8 @@ class Room(Enum):
     MINOR_BATHROOM = 3
     DRESSING_ROOM = 4
     BEDROOM = 5
-    OTHER = 6
+    SUNROOM = 6
+    OTHER = 7
 
 
 class BuildingSide(Enum):
@@ -236,6 +237,49 @@ def GetGrid(rooms):
     return grid
 
 
+def GetSunReachability(rooms, grid):
+    reachable = [[model.NewBoolVar('') for j in range(maxDim)]
+                 for i in range(maxDim)]
+    if topSide == BuildingSide.OPEN:
+        for j in range(maxDim):
+            model.Add(reachable[0][j] == 1)
+    if bottomSide == BuildingSide.OPEN:
+        for j in range(maxDim):
+            model.Add(reachable[maxDim - 1][j] == 1)
+    if leftSide == BuildingSide.OPEN:
+        for i in range(maxDim):
+            model.Add(reachable[i][0] == 1)
+    if rightSide == BuildingSide.OPEN:
+        for i in range(maxDim):
+            model.Add(reachable[i][maxDim-1] == 1)
+    DI = [1, -1, 0, 0]
+    DJ = [0, 0, 1, -1]
+    for i in range(1, maxDim-1):
+        for j in range(1, maxDim-1):
+            # if (neighbor ==1 and (equal to neighbor or neighbor is empty))
+            for di in DI:
+                for dj in DJ:
+                    i2 = i+di
+                    j2 = j+dj
+                    equal = model.NewBoolVar('')
+                    model.Add(grid[i][j] == grid[i2][j2]).OnlyEnforceIf(equal)
+                    model.Add(grid[i][j] != grid[i2][j2]
+                              ).OnlyEnforceIf(equal.Not())
+                    neighbor_empty = model.NewBoolVar('')
+                    model.Add(grid[i2][j2] == -1).OnlyEnforceIf(neighbor_empty)
+                    model.Add(grid[i2][j2] != -
+                              1).OnlyEnforceIf(neighbor_empty.Not())
+                    notBlocked = model.NewBoolVar('')
+                    model.AddImplication(neighbor_empty, notBlocked)
+                    model.AddImplication(equal, notBlocked)
+                    model.Add(notBlocked == 0).OnlyEnforceIf(
+                        [equal.Not(), neighbor_empty.Not()])
+                    model.Add(reachable[i][j] == 1).OnlyEnforceIf(
+                        [reachable[i2][j2], notBlocked])
+                    model.AddImplication(
+                        reachable[i2][j2].Not(), reachable[i][j].Not())
+                    model.AddImplication(
+                        notBlocked.Not(), reachable[i][j].Not())
 ############ Debugging Functions ##################################
 
 
@@ -262,7 +306,7 @@ def CheckGrid(rooms, grid):
 
 
 nOfApartments = 1
-nOfRooms = 5
+nOfRooms = 6
 rooms = []
 
 
@@ -285,7 +329,8 @@ for i in range(nOfRooms):
     elif i == 4:
         roomType = Room.DRESSING_ROOM
         adjacentTo = 3
-
+    elif i == 5:
+        roomType = Room.SUNROOM
     rooms.append(
         Rectangle(roomType, minArea[i], adjacentTo))
 
@@ -301,6 +346,7 @@ ConstraintApartmentDimensions(apartment)
 
 model.Minimize(apartment.area)
 grid = GetGrid(rooms)  # currently unused
+sun_reachability = GetSunReachability(rooms, grid)
 solver = cp_model.CpSolver()
 status = solver.Solve(model)
 print(solver.StatusName())
