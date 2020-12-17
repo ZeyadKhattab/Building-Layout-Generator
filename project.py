@@ -7,10 +7,9 @@ import matplotlib.pyplot as plt
 
 from enum import Enum
 from random import randint
-maxDim = 10
-DI = [-1, 1, 0, 0]
-DJ = [0, 0, -1, 1]
 
+
+########################   Enums   ########################
 
 class Room(Enum):
     DININGROOM = 1
@@ -28,9 +27,18 @@ class BuildingSide(Enum):
     OPEN = 2
     NONE = 3
 
+########################   Enums   ########################
+
+########################   Global Variables   ########################
+
+
+max_dim = 10
+
+DI = [-1, 1, 0, 0]
+DJ = [0, 0, -1, 1]
 
 ROOM_TYPE_MAP = {'Room.DININGROOM': 'DR', 'Room.KITCHEN': 'KT', 'Room.MINOR_BATHROOM': 'MB',
-               'Room.DRESSING_ROOM': 'DRS', 'Room.BEDROOM': 'BD', 'Room.SUNROOM': 'SR', 'Room.CORRIDOR': 'C', 'Room.OTHER': 'X'}
+                 'Room.DRESSING_ROOM': 'DRS', 'Room.BEDROOM': 'BD', 'Room.SUNROOM': 'SR', 'Room.CORRIDOR': 'C', 'Room.OTHER': 'X'}
 
 
 FLOOR_RIGHT_SIDE = BuildingSide.OPEN
@@ -38,95 +46,101 @@ FLOOR_LEFT_SIDE = BuildingSide.LANDSCAPE
 FLOOR_TOP_SIDE = BuildingSide.LANDSCAPE
 FLOOR_BOTTOM_SIDE = BuildingSide.NONE
 
+########################   Global Variables   ########################
+
+########################   Classes   ########################
+
 
 class Rectangle:
     roomId = 1
 
-    def __init__(self, room_type, min_area=1, width=0, height=0, adjacent_to=-1, apartment=1):
+    def __init__(self, room_type, min_area=1, width=0, height=0, adjacent_to=-1, apartment=0):
         # Name the variable names in the model properly.
         self.width = model.NewIntVar(
-            1, maxDim, 'Width, room: %d' % Rectangle.roomId)
+            1, max_dim, 'Width, room: %d' % Rectangle.roomId)
         self.height = model.NewIntVar(
-            1, maxDim, 'Height, room: %d' % Rectangle.roomId)
+            1, max_dim, 'Height, room: %d' % Rectangle.roomId)
         self.area = model.NewIntVar(
-            min_area, maxDim * maxDim, 'Area, room: %d' % Rectangle.roomId)
-        self.startRow = model.NewIntVar(
-            0, maxDim, 'Starting row, room: %d' % Rectangle.roomId)
-        self.startCol = model.NewIntVar(
-            0, maxDim, 'Starting col, room: %d' % Rectangle.roomId)
-        self.endRow = model.NewIntVar(
-            0, maxDim, 'Ending row, room: %d' % Rectangle.roomId)
-        self.endCol = model.NewIntVar(
-            0, maxDim, 'Ending col, room: %d' % Rectangle.roomId)
+            min_area, max_dim * max_dim, 'Area, room: %d' % Rectangle.roomId)
+        self.start_row = model.NewIntVar(
+            0, max_dim, 'Starting row, room: %d' % Rectangle.roomId)
+        self.start_col = model.NewIntVar(
+            0, max_dim, 'Starting col, room: %d' % Rectangle.roomId)
+        self.end_row = model.NewIntVar(
+            0, max_dim, 'Ending row, room: %d' % Rectangle.roomId)
+        self.end_col = model.NewIntVar(
+            0, max_dim, 'Ending col, room: %d' % Rectangle.roomId)
         self.room_type = room_type
         self.apartment = apartment
 
-        self.addGenericConstraints(width, height)
+        self.add_generic_constraints(width, height)
         self.adjacent_to = adjacent_to
         Rectangle.roomId += 1
 
-    def addGenericConstraints(self, width, height):
+    def add_generic_constraints(self, width, height):
         # We call the methods if the method is invoked with these parameters.
         if(width > 0):
-            self.addWidth(width)
+            self.add_width(width)
         if(height > 0):
-            self.addHeight(height)
+            self.add_height(height)
 
-        model.Add(self.width == self.endCol-self.startCol)
-        model.Add(self.height == self.endRow-self.startRow)
+        model.Add(self.width == self.end_col-self.start_col)
+        model.Add(self.height == self.end_row-self.start_row)
         model.AddMultiplicationEquality(self.area, [self.width, self.height])
 
-    def addRoomConstraints(self, apartment):
+    def add_room_constraints(self, apartment):
         adjacent_to = self.adjacent_to
         if self.room_type == Room.DININGROOM:
             for i in range(len(apartment)):
                 if(apartment[i].room_type == Room.KITCHEN):
                     adjacent_to = i
         if adjacent_to != -1:
-            AddAdjacencyConstraint(self, apartment[adjacent_to])
+            add_adjacency_constraint(self, apartment[adjacent_to])
 
-    def roomExistsWithinColumns(self, startCol, endCol):
-        return AddIntersectionBetweenEdges(
-            [self.startCol, self.endCol], [startCol, endCol])
+    def room_exists_within_columns(self, startCol, endCol):
+        return add_intersection_between_edges(
+            [self.start_col, self.end_col], [startCol, endCol])
 
-    def roomExistsWithinRows(self, startRow, endRow):
-        return AddIntersectionBetweenEdges(
-            [self.startRow, self.endRow], [startRow, endRow])
+    def room_exists_within_rows(self, startRow, endRow):
+        return add_intersection_between_edges(
+            [self.start_row, self.end_row], [startRow, endRow])
 
-    def toString(self):
+    def to_string(self):
         print("Rectangle coordinates: (%d,%d)" %
-              (self.startRow, self.startCol))
+              (self.start_row, self.start_col))
         print("Rectangle width: %d, Rectangle height: %d" %
               (self.width, self.height))
 
-    def addWidth(self, width):
+    def add_width(self, width):
         model.Add(self.width == width)
 
-    def addHeight(self, height):
+    def add_height(self, height):
         model.Add(self.height == height)
 
-    def getLeft(self):
-        return self.startCol
+    def get_left(self):
+        return self.start_col
 
-    def getRight(self):
-        return self.endCol
+    def get_right(self):
+        return self.end_col
 
-    def getTop(self):
-        return self.startRow
+    def get_top(self):
+        return self.start_row
 
-    def getBottom(self):
-        return self.endRow
+    def get_bottom(self):
+        return self.end_row
+
+########################   Classes   ########################
 
 
-def AddIntersectionBetweenEdges(a, b):
+def add_intersection_between_edges(a, b):
     l1 = a[0]
     r1 = a[1]
     l2 = b[0]
     r2 = b[1]
     eq = model.NewBoolVar('')
-    l = model.NewIntVar(0, maxDim, '')
+    l = model.NewIntVar(0, max_dim, '')
     model.AddMaxEquality(l, [l1, l2])
-    r = model.NewIntVar(0, maxDim, '')
+    r = model.NewIntVar(0, max_dim, '')
     model.AddMinEquality(r, [r1, r2])
     leq = model.NewBoolVar('')
     model.Add(l <= r).OnlyEnforceIf(leq)
@@ -138,98 +152,124 @@ def AddIntersectionBetweenEdges(a, b):
 # This method sets the relation between the start and end (rows/columns)
 # by adding the |AddNoOverlap2D| constraint to the model.
 
-# Takes in the flattened version of the apartments, universal.
+# Takes in the flattened version of the apartments, universal. Takes in all corridors.
 
 
-def AddNoIntersectionConstraint(flattened_rooms):
-    rowIntervals = [model.NewIntervalVar(
-        room.getTop(), room.height, room.getBottom(), 'room %d' % (roomNum + 1)) for roomNum, room in enumerate(flattened_rooms)]
-    colIntervals = [model.NewIntervalVar(
-        room.getLeft(), room.width, room.getRight(), 'room %d' % (roomNum + 1)) for roomNum, room in enumerate(flattened_rooms)]
-    # how could this be optimized?
-    model.AddNoOverlap2D(colIntervals, rowIntervals)
+def add_no_intersection_constraint(flattened_rooms, floor_corridors):
+    row_intervals = [model.NewIntervalVar(
+        room.get_top(), room.height, room.get_bottom(), 'room %d' % (roomNum + 1)) for roomNum, room in enumerate(flattened_rooms)]
+    col_intervals = [model.NewIntervalVar(
+        room.get_left(), room.width, room.get_right(), 'room %d' % (roomNum + 1)) for roomNum, room in enumerate(flattened_rooms)]
+    for corridor in floor_corridors:
+        row_intervals.append(model.NewIntervalVar(
+            corridor.get_top(), corridor.height, corridor.get_bottom(), ''))
+        col_intervals.append(model.NewIntervalVar(
+            corridor.get_left(), corridor.width, corridor.get_right(), ''))
 
-def AddAdjacencyConstraint(room, adjacentRoom, add=1):
-    columnsLeq, columnsEq = room.roomExistsWithinColumns(
-        adjacentRoom.startCol, adjacentRoom.endCol)
-    rowsLeq, rowsEq = room.roomExistsWithinRows(
-        adjacentRoom.startRow, adjacentRoom.endRow)
+    model.AddNoOverlap2D(col_intervals, row_intervals)
+
+
+def add_adjacency_constraint(room, adjacent_room, add=1):
+    columns_leq, columns_eq = room.room_exists_within_columns(
+        adjacent_room.start_col, adjacent_room.end_col)
+    rows_leq, rows_eq = room.room_exists_within_rows(
+        adjacent_room.start_row, adjacent_room.end_row)
     intersection = model.NewBoolVar('')
-    model.Add(intersection == 1).OnlyEnforceIf([columnsLeq, rowsLeq])
-    model.AddImplication(columnsLeq.Not(), intersection.Not())
-    model.AddImplication(rowsLeq.Not(), intersection.Not())
+    model.Add(intersection == 1).OnlyEnforceIf([columns_leq, rows_leq])
+    model.AddImplication(columns_leq.Not(), intersection.Not())
+    model.AddImplication(rows_leq.Not(), intersection.Not())
     if add == 1:
         model.Add(intersection == 1)
-    model.Add(columnsEq + rowsEq < 2)
+    model.Add(columns_eq + rows_eq < 2)
     return intersection
 
 # Takes in one single apartment, non-universal.
 
 
-def AddCorridorConstraint(nOfCorridors, flattened_rooms):
+def add_corridor_constraint(n_corridors, flattened_rooms):
     '''The last nOfCorriodors should have type corridor'''
-    assert(nOfCorridors > 0)
+    assert(n_corridors > 0)
     n = len(flattened_rooms)
     # All the corriods are adjacent to each other
-    for i in range(n-nOfCorridors, n-1):
-        AddAdjacencyConstraint(flattened_rooms[i], flattened_rooms[i+1])
-    for i in range(n-nOfCorridors):
-        currRoom = flattened_rooms[i]
+    for i in range(n-n_corridors, n-1):
+        add_adjacency_constraint(flattened_rooms[i], flattened_rooms[i+1])
+    for i in range(n-n_corridors):
+        current_room = flattened_rooms[i]
         adjacent_to_corridors = []
-        for j in range(n-nOfCorridors, n):
+        for j in range(n-n_corridors, n):
             corridor = flattened_rooms[j]
-            adjacent_to_corridors.append(AddAdjacencyConstraint(
-                currRoom, corridor, 0))
+            adjacent_to_corridors.append(add_adjacency_constraint(
+                current_room, corridor, 0))
+        model.Add(sum(adjacent_to_corridors) > 0)
+
+
+def add_floor_corridor_constraints(apartments, floor_corridors):
+    '''There has to be at least one corridor for the floor'''
+    assert(len(floor_corridors) > 0)
+
+    n_floor_corridors = len(floor_corridors)
+    # All floor corridors are adjacent to each other
+    for i in range(n_floor_corridors - 1):
+        add_adjacency_constraint(floor_corridors[i], floor_corridors[i + 1])
+
+    # At least one room from each apartment is adjacent to a corridor
+    for apartment in apartments:
+        adjacent_to_corridors = []
+        for room in apartment:
+            for corridor in floor_corridors:
+                adjacent_to_corridors.append(
+                    add_adjacency_constraint(room, corridor, 0))
         model.Add(sum(adjacent_to_corridors) > 0)
 
 # Takes in the flattened version of the apartments, universal.
+# Consider corridors. For now it takes in all corridors.
 
 
-def GetGrid(flattened_rooms):
-    n = len(flattened_rooms)
-    grid = [[model.NewIntVar(-1, n-1, '') for j in range(maxDim)]
-            for i in range(maxDim)]
-    for i in range(maxDim):
-        for j in range(maxDim):
+def get_grid(flattened_floor):
+    n = len(flattened_floor)
+    grid = [[model.NewIntVar(-1, n-1, '') for j in range(max_dim)]
+            for i in range(max_dim)]
+    for i in range(max_dim):
+        for j in range(max_dim):
             intersections = []
-            for index, room in enumerate(flattened_rooms):
+            for index, room in enumerate(flattened_floor):
 
                 # rows
                 greater_than_r1 = model.NewBoolVar('')
                 less_than_r2 = model.NewBoolVar('')
-                model.Add(i >= room.startRow).OnlyEnforceIf(greater_than_r1)
-                model.Add(i < room.startRow).OnlyEnforceIf(
+                model.Add(i >= room.start_row).OnlyEnforceIf(greater_than_r1)
+                model.Add(i < room.start_row).OnlyEnforceIf(
                     greater_than_r1.Not())
                 # strictly less due to the mapping between continus and discrete systems
-                model.Add(i < room.endRow).OnlyEnforceIf(less_than_r2)
-                model.Add(i >= room.endRow).OnlyEnforceIf(less_than_r2.Not())
+                model.Add(i < room.end_row).OnlyEnforceIf(less_than_r2)
+                model.Add(i >= room.end_row).OnlyEnforceIf(less_than_r2.Not())
                 # cols
                 greater_than_c1 = model.NewBoolVar('')
                 less_than_c2 = model.NewBoolVar('')
-                model.Add(j >= room.startCol).OnlyEnforceIf(greater_than_c1)
-                model.Add(j < room.startCol).OnlyEnforceIf(
+                model.Add(j >= room.start_col).OnlyEnforceIf(greater_than_c1)
+                model.Add(j < room.start_col).OnlyEnforceIf(
                     greater_than_c1.Not())
                 # strictly less due to the mapping between continus and discrete systems
-                model.Add(j < room.endCol).OnlyEnforceIf(less_than_c2)
-                model.Add(j >= room.endCol).OnlyEnforceIf(less_than_c2.Not())
-                betweenRows = model.NewBoolVar('')
+                model.Add(j < room.end_col).OnlyEnforceIf(less_than_c2)
+                model.Add(j >= room.end_col).OnlyEnforceIf(less_than_c2.Not())
+                between_rows = model.NewBoolVar('')
                 model.AddBoolAnd([greater_than_r1, less_than_r2]
-                                 ).OnlyEnforceIf(betweenRows)
+                                 ).OnlyEnforceIf(between_rows)
                 model.AddBoolOr([greater_than_r1.Not(), less_than_r2.Not()]
-                                ).OnlyEnforceIf(betweenRows.Not())
-                betweenCols = model.NewBoolVar('')
+                                ).OnlyEnforceIf(between_rows.Not())
+                between_columns = model.NewBoolVar('')
                 model.AddBoolAnd([greater_than_c1, less_than_c2]
-                                 ).OnlyEnforceIf(betweenCols)
+                                 ).OnlyEnforceIf(between_columns)
                 model.AddBoolOr([greater_than_c1.Not(), less_than_c2.Not()]
-                                ).OnlyEnforceIf(betweenCols.Not())
+                                ).OnlyEnforceIf(between_columns.Not())
 
                 model.Add(grid[i][j] == index).OnlyEnforceIf(
-                    [betweenRows, betweenCols])
+                    [between_rows, between_columns])
                 intersection = model.NewBoolVar('')
                 model.Add(intersection == 1).OnlyEnforceIf(
-                    [betweenRows, betweenCols])
-                model.AddImplication(betweenCols.Not(), intersection.Not())
-                model.AddImplication(betweenRows.Not(), intersection.Not())
+                    [between_rows, between_columns])
+                model.AddImplication(between_columns.Not(), intersection.Not())
+                model.AddImplication(between_rows.Not(), intersection.Not())
                 intersections.append(intersection)
             empty = model.NewBoolVar('')
             model.Add(sum(intersections) == 0).OnlyEnforceIf(empty)
@@ -238,46 +278,48 @@ def GetGrid(flattened_rooms):
     return grid
 
 # Takes in the grid, universal.
+# Consider corridors as well.
 
 
-def GetSunReachability(grid):
+def get_sun_reachability(grid):
     """A cell is reachable if it's reachable from any of the four directions."""
     reachable_from = [[[model.NewBoolVar('%i %i %i' % (i, j, k)) for k in range(
-        len(DI))] for j in range(maxDim)] for i in range(maxDim)]
-    reachable = [[model.NewBoolVar('') for j in range(maxDim)]
-                 for i in range(maxDim)]
+        len(DI))] for j in range(max_dim)] for i in range(max_dim)]
+    reachable = [[model.NewBoolVar('') for j in range(max_dim)]
+                 for i in range(max_dim)]
     top = 0
     bottom = 1
     left = 2
     right = 3
-    isOpen = 1 if FLOOR_TOP_SIDE == BuildingSide.OPEN else 0
-    for j in range(maxDim):
-        model.Add(reachable_from[0][j][top] == isOpen)
+    is_open = 1 if FLOOR_TOP_SIDE == BuildingSide.OPEN else 0
 
-    isOpen = 1 if FLOOR_BOTTOM_SIDE == BuildingSide.OPEN else 0
-    for j in range(maxDim):
-        model.Add(reachable_from[maxDim - 1][j][bottom] == isOpen)
+    for j in range(max_dim):
+        model.Add(reachable_from[0][j][top] == is_open)
 
-    isOpen = 1 if FLOOR_LEFT_SIDE == BuildingSide.OPEN else 0
-    for i in range(maxDim):
-        model.Add(reachable_from[i][0][left] == isOpen)
+    is_open = 1 if FLOOR_BOTTOM_SIDE == BuildingSide.OPEN else 0
+    for j in range(max_dim):
+        model.Add(reachable_from[max_dim - 1][j][bottom] == is_open)
 
-    isOpen = 1 if FLOOR_RIGHT_SIDE == BuildingSide.OPEN else 0
-    for i in range(maxDim):
-        model.Add(reachable_from[i][maxDim-1][right] == isOpen)
+    is_open = 1 if FLOOR_LEFT_SIDE == BuildingSide.OPEN else 0
+    for i in range(max_dim):
+        model.Add(reachable_from[i][0][left] == is_open)
 
-    for i in range(maxDim):
-        for j in range(maxDim):
-            currentCell = []
+    is_open = 1 if FLOOR_RIGHT_SIDE == BuildingSide.OPEN else 0
+    for i in range(max_dim):
+        model.Add(reachable_from[i][max_dim-1][right] == is_open)
+
+    for i in range(max_dim):
+        for j in range(max_dim):
+            current_cell = []
             # if (neighbor ==1 and (equal to neighbor or neighbor is empty))
             for k in range(len(DI)):
                 i2 = i+DI[k]
                 j2 = j+DJ[k]
-                if(i2 < 0 or i2 >= maxDim):
-                    currentCell.append(reachable_from[i][j][k])
+                if(i2 < 0 or i2 >= max_dim):
+                    current_cell.append(reachable_from[i][j][k])
                     continue
-                if(j2 < 0 or j2 >= maxDim):
-                    currentCell.append(reachable_from[i][j][k])
+                if(j2 < 0 or j2 >= max_dim):
+                    current_cell.append(reachable_from[i][j][k])
                     continue
                 equal = model.NewBoolVar('')
                 model.Add(grid[i][j] == grid[i2][j2]).OnlyEnforceIf(equal)
@@ -287,102 +329,107 @@ def GetSunReachability(grid):
                 model.Add(grid[i2][j2] == -1).OnlyEnforceIf(neighbor_empty)
                 model.Add(grid[i2][j2] != -
                           1).OnlyEnforceIf(neighbor_empty.Not())
-                notBlocked = model.NewBoolVar('')
-                model.AddImplication(neighbor_empty, notBlocked)
-                model.AddImplication(equal, notBlocked)
-                model.Add(notBlocked == 0).OnlyEnforceIf(
+                not_blocked = model.NewBoolVar('')
+                model.AddImplication(neighbor_empty, not_blocked)
+                model.AddImplication(equal, not_blocked)
+                model.Add(not_blocked == 0).OnlyEnforceIf(
                     [equal.Not(), neighbor_empty.Not()])
                 model.Add(reachable_from[i][j][k] == 1).OnlyEnforceIf(
-                    [reachable_from[i2][j2][k], notBlocked])
+                    [reachable_from[i2][j2][k], not_blocked])
                 model.AddImplication(
                     reachable_from[i2][j2][k].Not(), reachable_from[i][j][k].Not())
                 model.AddImplication(
-                    notBlocked.Not(), reachable_from[i][j][k].Not())
-                currentCell.append(reachable_from[i][j][k])
-            model.Add(sum(currentCell) > 0).OnlyEnforceIf(reachable[i][j])
-            model.Add(sum(currentCell) == 0).OnlyEnforceIf(
+                    not_blocked.Not(), reachable_from[i][j][k].Not())
+                current_cell.append(reachable_from[i][j][k])
+            model.Add(sum(current_cell) > 0).OnlyEnforceIf(reachable[i][j])
+            model.Add(sum(current_cell) == 0).OnlyEnforceIf(
                 reachable[i][j].Not())
     return reachable
 
 # Takes in the flattened version of the apartments, universal.
 
 
-def AddSunRoomConstraints(sun_reachability, grid, flattened_rooms):
+def add_sunroom_constraints(sun_reachability, grid, flattened_rooms):
     """For each sunrom, one of its cells must be reachable from the sun."""
     for index, room in enumerate(flattened_rooms):
         if(room.room_type == Room.SUNROOM):
-            isreachable = []
-            for i in range(maxDim):
-                for j in range(maxDim):
+            is_reachable = []
+            for i in range(max_dim):
+                for j in range(max_dim):
                     # if grid[i][j]==index and sun_reachability[i][j]==1 then true
                     b = model.NewBoolVar('')
-                    inRoom = model.NewBoolVar('')
-                    model.Add(grid[i][j] == index).OnlyEnforceIf(inRoom)
-                    model.Add(grid[i][j] != index).OnlyEnforceIf(inRoom.Not())
+                    in_room = model.NewBoolVar('')
+                    model.Add(grid[i][j] == index).OnlyEnforceIf(in_room)
+                    model.Add(grid[i][j] != index).OnlyEnforceIf(in_room.Not())
                     model.Add(b == 1).OnlyEnforceIf(
-                        [inRoom, sun_reachability[i][j]])
-                    model.AddImplication(inRoom.Not(), b.Not())
+                        [in_room, sun_reachability[i][j]])
+                    model.AddImplication(in_room.Not(), b.Not())
                     model.AddImplication(sun_reachability[i][j].Not(), b.Not())
-                    isreachable.append(b)
-            model.Add(sum(isreachable) > 0)
+                    is_reachable.append(b)
+            model.Add(sum(is_reachable) > 0)
+
+# If given |apartments| only, it will flatten the apartments.
+# If given |apartments| and |floor_corridors| it will flatten both together.
 
 
-def FlattenRooms(apartments):
-    flattenedRooms = []
+def flatten(apartments, floor_corridors=[]):
+    flattened_rooms = []
     for apartment in apartments:
         for room in apartment:
-            flattenedRooms.append(room)
-    return flattenedRooms
+            flattened_rooms.append(room)
+
+    for corridor in floor_corridors:
+        flattened_rooms.append(corridor)
+    return flattened_rooms
 
 ############ Debugging Functions ##################################
 
 
-def CheckGrid(flattenedRooms, grid):
+def check_grid(flattened_floor, grid):
     """Checks that the creeated Int var grid is equal to the visualized grid."""
-    visited = [[False for j in range(maxDim)] for i in range(maxDim)]
-    for index, room in enumerate(flattenedRooms):
-        r1 = solver.Value(room.startRow)
-        r2 = solver.Value(room.endRow)
-        c1 = solver.Value(room.startCol)
-        c2 = solver.Value(room.endCol)
-        for r in range(r1, r2):
-            for c in range(c1, c2):
-                curr = solver.Value(grid[r][c])
+    visited = [[False for j in range(max_dim)] for i in range(max_dim)]
+    for index, room in enumerate(flattened_floor):
+        start_row = solver.Value(room.start_row)
+        end_row = solver.Value(room.end_row)
+        start_column = solver.Value(room.start_col)
+        end_column = solver.Value(room.end_col)
+        for row in range(start_row, end_row):
+            for column in range(start_column, end_column):
+                curr = solver.Value(grid[row][column])
                 assert(curr == index)
-                visited[r][c] = True
-    for i in range(maxDim):
-        for j in range(maxDim):
+                visited[row][column] = True
+    for i in range(max_dim):
+        for j in range(max_dim):
             assert(visited[i][j] or solver.Value(grid[i][j]) == -1)
 
 
-def PrintSunReachability(sun_reachibility):
+def print_sun_reachability(sun_reachibility):
     print('Sun Reachability Matrix')
-    for i in range(maxDim):
-        for j in range(maxDim):
+    for i in range(max_dim):
+        for j in range(max_dim):
             print(solver.Value(sun_reachability[i][j]), end=' ')
         print()
 
 
-def PrintApartment(flattenedRooms):
-    """Prints all maxDim * maxDim values in constrast to the visualize method which prints only the bounding box."""
-    # print('Complete Apartment')
-    visualizedOutput = [[0 for i in range(maxDim)] for j in range(maxDim)]
+def visualize_floor(flattened_floor):
+    """Visualizes the floor using matplotlib"""
+    visualized_output = [[0 for i in range(max_dim)] for j in range(max_dim)]
     fig, ax = plt.subplots()
     for i, row in enumerate(grid):
         for j, x in enumerate(row):
             value = solver.Value(x) + 1
-            room_type = flattenedRooms[value - 1].room_type
-            apartmentNum = flattenedRooms[value - 1].apartment
+            room_type = flattened_floor[value - 1].room_type
+            apartment_num = flattened_floor[value - 1].apartment
+            heatmap_text = ROOM_TYPE_MAP[str(room_type)]+','+str(apartment_num)
             if value == 0:
                 room_type = Room.OTHER
-                apartmentNum = ''
-            print(value, end=' ')
-            visualizedOutput[i][j] = value
+                apartment_num = ''
+                heatmap_text = ROOM_TYPE_MAP[str(room_type)]
+            visualized_output[i][j] = value
             ax.text(
-                j, i, ROOM_TYPE_MAP[str(room_type)]+','+str(apartmentNum), ha='center', va='center')
-        print()
+                j, i, heatmap_text, ha='center', va='center')
 
-    im = ax.imshow(visualizedOutput)
+    im = ax.imshow(visualized_output)
     fig.tight_layout()
     plt.show()
 
@@ -430,21 +477,28 @@ for apartment_no in range(n_apartments):
 
     apartments.append(apartment)
 
+n_floor_corridors = 3
+floor_corridors = []
+for i in range(n_floor_corridors):
+    floor_corridors.append(Rectangle(Room.CORRIDOR))
+
 ########################   Process Future Input Here ########################
 for apartment in apartments:
     for room in apartment:
-        room.addRoomConstraints(apartment)
+        room.add_room_constraints(apartment)
 
-flattened_rooms = FlattenRooms(apartments)
+flattened_rooms = flatten(apartments)
+flattened_floor = flatten(apartments, floor_corridors)
 
-AddNoIntersectionConstraint(flattened_rooms)
+add_no_intersection_constraint(flattened_rooms, floor_corridors)
+add_floor_corridor_constraints(apartments, floor_corridors)
 
 for apartment in apartments:
-    AddCorridorConstraint(n_corridors, apartment)
+    add_corridor_constraint(n_corridors, apartment)
 
-grid = GetGrid(flattened_rooms)
-sun_reachability = GetSunReachability(grid)
-AddSunRoomConstraints(sun_reachability, grid, flattened_rooms)
+grid = get_grid(flattened_floor)
+sun_reachability = get_sun_reachability(grid)
+add_sunroom_constraints(sun_reachability, grid, flattened_rooms)
 solver = cp_model.CpSolver()
 status = solver.Solve(model)
 print(solver.StatusName())
@@ -454,6 +508,6 @@ print('time = ', solver.WallTime())
 
 ########################  Debuging ################
 
-CheckGrid(flattened_rooms, grid)
+check_grid(flattened_floor, grid)
 
-PrintApartment(flattened_rooms)
+visualize_floor(flattened_floor)
