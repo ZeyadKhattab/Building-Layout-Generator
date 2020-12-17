@@ -129,15 +129,17 @@ def AddIntersectionBetweenEdges(a, b):
     r1 = a[1]
     l2 = b[0]
     r2 = b[1]
-    b = model.NewBoolVar('')
+    eq = model.NewBoolVar('')
     l = model.NewIntVar(0, maxDim, '')
     model.AddMaxEquality(l, [l1, l2])
     r = model.NewIntVar(0, maxDim, '')
     model.AddMinEquality(r, [r1, r2])
-    model.Add(l <= r)
-    model.Add(l == r).OnlyEnforceIf(b)
-    model.Add(l != r).OnlyEnforceIf(b.Not())
-    return b
+    leq = model.NewBoolVar('')
+    model.Add(l <= r).OnlyEnforceIf(leq)
+    model.Add(l > r).OnlyEnforceIf(leq.Not())
+    model.Add(l == r).OnlyEnforceIf(eq)
+    model.Add(l != r).OnlyEnforceIf(eq.Not())
+    return leq, eq
 
 
 def VisualizeApartments(apartment, rooms):
@@ -191,12 +193,19 @@ def ConstraintApartmentDimensions(apartment):
     model.AddMaxEquality(apartment.getBottom(), bottomBorders)
 
 
-def AddAdjacencyConstraint(room, adjacentRoom):
-    columnsFlag = room.roomExistsWithinColumns(
+def AddAdjacencyConstraint(room, adjacentRoom, add=1):
+    columnsLeq, columnsEq = room.roomExistsWithinColumns(
         adjacentRoom.startCol, adjacentRoom.endCol)
-    rowsFlag = room.roomExistsWithinRows(
+    rowsLeq, rowsEq = room.roomExistsWithinRows(
         adjacentRoom.startRow, adjacentRoom.endRow)
-    model.Add(columnsFlag + rowsFlag < 2)
+    intersection = model.NewBoolVar('')
+    model.Add(intersection == 1).OnlyEnforceIf([columnsLeq, rowsLeq])
+    model.AddImplication(columnsLeq.Not(), intersection.Not())
+    model.AddImplication(rowsLeq.Not(), intersection.Not())
+    if add == 1:
+        model.Add(intersection == 1)
+    model.Add(columnsEq + rowsEq < 2)
+    return intersection
 
 
 def AddCorridorConstraint(corridor):
@@ -373,7 +382,7 @@ def PrintSunReachability(sun_reachibility):
 
 def PrintApartment(apartment):
     """Prints all maxDim * maxDim values in constrast to the visualize method which prints only the bounding box."""
-    #print('Complete Apartment')
+    # print('Complete Apartment')
     visualizedOutput = [[0 for i in range(maxDim)] for j in range(maxDim)]
     fig, ax = plt.subplots()
     for i, row in enumerate(grid):
@@ -398,7 +407,8 @@ def PrintApartment(apartment):
 
 
 nOfApartments = 1
-nOfRooms = 6  # + 1  # 1 for the corridor added
+nOfCorridors = 0
+nOfRooms = 6 + nOfCorridors
 rooms = []
 
 
@@ -407,9 +417,9 @@ minArea = [randint(1, 5) for i in range(nOfRooms)]
 
 print(minArea)
 for i in range(nOfRooms):
-    # if i == nOfRooms - 1:
-    # rooms.append(Rectangle(Room.CORRIDOR))
-    # continue
+    if i >= nOfRooms - nOfCorridors:
+        rooms.append(Rectangle(Room.CORRIDOR))
+        continue
 
     roomType = Room.OTHER
     adjacentTo = -1
@@ -435,7 +445,7 @@ for room in rooms:
     room.addRoomConstraints()
 
 AddNoIntersectionConstraint(rooms)
-# AddCorridorConstraint(rooms[len(rooms) - 1])
+# AddCorridorConstraint(nOfCorridors)
 
 apartment = Rectangle(Room.OTHER)
 
