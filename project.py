@@ -428,7 +428,7 @@ for i in range(nOfRooms):
     elif i == 5:
         roomType = Room.SUNROOM
     rooms.append(
-        Rectangle(roomType, minArea[i], adjacentTo))
+        Rectangle(roomType, minArea[i], adjacentTo=adjacentTo))
 
 ########################   Process Future Input Here ########################
 for room in rooms:
