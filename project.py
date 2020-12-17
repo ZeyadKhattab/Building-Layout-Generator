@@ -391,7 +391,7 @@ def PrintSunReachability(sun_reachibility):
         print()
 
 
-def PrintApartment(apartment):
+def PrintApartment(rooms):
     """Prints all maxDim * maxDim values in constrast to the visualize method which prints only the bounding box."""
     # print('Complete Apartment')
     visualizedOutput = [[0 for i in range(maxDim)] for j in range(maxDim)]
@@ -418,7 +418,7 @@ def PrintApartment(apartment):
 
 
 nOfApartments = 1
-nOfCorridors = 2
+nOfCorridors = 3
 nOfRooms = 6 + nOfCorridors
 rooms = []
 
@@ -457,19 +457,12 @@ for room in rooms:
 
 AddNoIntersectionConstraint(rooms)
 AddCorridorConstraint(nOfCorridors, rooms)
-
-apartment = Rectangle(Room.OTHER)
-
-ConstraintApartmentDimensions(apartment)
-
-model.Minimize(apartment.area)
 grid = GetGrid(rooms)
 sun_reachability = GetSunReachability(rooms, grid)
 AddSunRoomConstraints(sun_reachability, grid, rooms)
 solver = cp_model.CpSolver()
 status = solver.Solve(model)
 print(solver.StatusName())
-print(solver.Value(apartment.area))
 print('time = ', solver.WallTime())
 # VisualizeApartments(apartment, rooms)
 
@@ -479,5 +472,4 @@ print('time = ', solver.WallTime())
 
 CheckGrid(rooms, grid)
 
-# PrintSunReachability(sun_reachability)
-PrintApartment(apartment)
+PrintApartment(rooms)
