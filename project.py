@@ -208,10 +208,21 @@ def AddAdjacencyConstraint(room, adjacentRoom, add=1):
     return intersection
 
 
-def AddCorridorConstraint(corridor):
-    for room in rooms:
-        if room.roomType != Room.MINOR_BATHROOM and room.roomType != Room.CORRIDOR:
-            AddAdjacencyConstraint(corridor, room)
+def AddCorridorConstraint(nOfCorridors, rooms):
+    '''The last nOfCorriodors should have type corridor'''
+    assert(nOfCorridors > 0)
+    n = len(rooms)
+    # All the corriods are adjacent to each other
+    for i in range(n-nOfCorridors, n-1):
+        AddAdjacencyConstraint(rooms[i], rooms[i+1])
+    for i in range(n-nOfCorridors):
+        currRoom = rooms[i]
+        adjacent_to_corridors = []
+        for j in range(n-nOfCorridors, n):
+            corridor = rooms[j]
+            adjacent_to_corridors.append(AddAdjacencyConstraint(
+                currRoom, corridor, 0))
+        model.Add(sum(adjacent_to_corridors) > 0)
 
 
 def GetGrid(rooms):
@@ -407,7 +418,7 @@ def PrintApartment(apartment):
 
 
 nOfApartments = 1
-nOfCorridors = 0
+nOfCorridors = 2
 nOfRooms = 6 + nOfCorridors
 rooms = []
 
@@ -438,14 +449,14 @@ for i in range(nOfRooms):
     elif i == 5:
         roomType = Room.SUNROOM
     rooms.append(
-        Rectangle(roomType, minArea[i], adjacentTo))
+        Rectangle(roomType, minArea[i], adjacentTo=adjacentTo))
 
 ########################   Process Future Input Here ########################
 for room in rooms:
     room.addRoomConstraints()
 
 AddNoIntersectionConstraint(rooms)
-# AddCorridorConstraint(nOfCorridors)
+AddCorridorConstraint(nOfCorridors, rooms)
 
 apartment = Rectangle(Room.OTHER)
 
