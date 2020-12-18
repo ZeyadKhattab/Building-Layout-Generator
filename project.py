@@ -445,7 +445,7 @@ apartment_corridors = []
 
 model = cp_model.CpModel()
 for apartment_no in range(n_apartments):
-    n_corridors = 3
+    n_corridors = randint(1, 3)
     apartment_corridors.append(n_corridors)
     n_rooms = 6 + n_corridors
     min_area = [randint(1, 5) for i in range(n_rooms)]
@@ -478,7 +478,7 @@ for apartment_no in range(n_apartments):
 
     apartments.append(apartment)
 
-n_floor_corridors = 3
+n_floor_corridors = randint(1, 3)
 floor_corridors = []
 for i in range(n_floor_corridors):
     floor_corridors.append(Rectangle(Room.CORRIDOR))
