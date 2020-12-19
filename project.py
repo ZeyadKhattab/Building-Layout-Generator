@@ -378,24 +378,52 @@ def get_sun_reachability(grid):
 # Takes in the flattened version of the apartments, universal.
 
 
-def add_sunroom_constraints(sun_reachability, grid, flattened_floor):
+def add_sun_reachability(sun_reachability, grid, flattened_floor, room_idx):
     """For each sunrom, one of its cells must be reachable from the sun."""
-    for index, room in enumerate(flattened_floor):
-        if(room.room_type == Room.SUNROOM):
-            is_reachable = []
-            for i in range(MAX_DIM):
-                for j in range(MAX_DIM):
-                    # if grid[i][j]==index and sun_reachability[i][j]==1 then true
-                    b = model.NewBoolVar('')
-                    in_room = model.NewBoolVar('')
-                    model.Add(grid[i][j] == index).OnlyEnforceIf(in_room)
-                    model.Add(grid[i][j] != index).OnlyEnforceIf(in_room.Not())
-                    model.Add(b == 1).OnlyEnforceIf(
-                        [in_room, sun_reachability[i][j]])
-                    model.AddImplication(in_room.Not(), b.Not())
-                    model.AddImplication(sun_reachability[i][j].Not(), b.Not())
-                    is_reachable.append(b)
-            model.Add(sum(is_reachable) > 0)
+
+    is_cells_reachable = []
+    for i in range(MAX_DIM):
+        for j in range(MAX_DIM):
+            # if grid[i][j]==index and sun_reachability[i][j]==1 then true
+            is_cell_reachable = model.NewBoolVar('')
+            in_room = model.NewBoolVar('')
+            model.Add(grid[i][j] == room_idx).OnlyEnforceIf(in_room)
+            model.Add(grid[i][j] != room_idx).OnlyEnforceIf(in_room.Not())
+            model.Add(is_cell_reachable == 1).OnlyEnforceIf(
+                [in_room, sun_reachability[i][j]])
+            model.AddImplication(
+                in_room.Not(), is_cell_reachable.Not())
+            model.AddImplication(
+                sun_reachability[i][j].Not(), is_cell_reachable.Not())
+            is_cells_reachable.append(is_cell_reachable)
+
+    is_room_reachable = model.NewBoolVar('')
+    model.Add(sum(is_cells_reachable) > 0).OnlyEnforceIf(is_room_reachable)
+    model.Add(sum(is_cells_reachable) == 0).OnlyEnforceIf(
+        is_room_reachable.Not())
+
+    if flattened_floor[room_idx].room_type == Room.SUNROOM:
+        model.Add(is_room_reachable == 1)
+
+    return is_room_reachable
+
+
+def add_soft_sun_reachability_constraint(sun_reachability, grid, flattened_floor):
+    is_room_sun_reachable = []
+
+    for room_idx, room in enumerate(flattened_floor):
+        if room.room_type != Room.DUCT and room.room_type != Room.STAIR and room.room_type != Room.ELEVATOR and room.room_type != Room.SUNROOM:
+            is_room_sun_reachable.append(add_sun_reachability(sun_reachability, grid,
+                                                              flattened_floor, room_idx))
+
+    return sum(is_room_sun_reachable)
+
+
+def add_sunroom_constraint(sun_reachability, grid, flattened_floor):
+    for room_idx, room in enumerate(flattened_floor):
+        if room.room_type == Room.SUNROOM:
+            add_sun_reachability(sun_reachability, grid,
+                                 flattened_floor, room_idx)
 
 # If given |apartments| only, it will flatten the apartments.
 # If given |apartments| and |floor_corridors| it will flatten both together.
@@ -550,7 +578,11 @@ for apartment_no, apartment in enumerate(apartments):
 
 grid = get_grid(flattened_floor)
 sun_reachability = get_sun_reachability(grid)
-add_sunroom_constraints(sun_reachability, grid, flattened_floor)
+add_sunroom_constraint(sun_reachability, grid, flattened_floor)
+
+model.Maximize(add_soft_sun_reachability_constraint(
+    sun_reachability, grid, flattened_floor) * 1)
+
 solver = cp_model.CpSolver()
 status = solver.Solve(model)
 print(solver.StatusName())
