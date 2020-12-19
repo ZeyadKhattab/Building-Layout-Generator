@@ -14,12 +14,14 @@ from random import randint
 class Room(Enum):
     DININGROOM = 1
     KITCHEN = 2
-    MINOR_BATHROOM = 3
-    DRESSING_ROOM = 4
-    BEDROOM = 5
-    SUNROOM = 6
-    CORRIDOR = 7
-    OTHER = 8
+    MAIN_BATHROOM = 3
+    MINOR_BATHROOM = 4
+    DUCT = 5
+    DRESSING_ROOM = 6
+    BEDROOM = 7
+    SUNROOM = 8
+    CORRIDOR = 9
+    OTHER = 10
 
 
 class FloorSide(Enum):
@@ -37,8 +39,8 @@ MAX_DIM = 10
 DI = [-1, 1, 0, 0]
 DJ = [0, 0, -1, 1]
 
-ROOM_TYPE_MAP = {'Room.DININGROOM': 'DR', 'Room.KITCHEN': 'KT', 'Room.MINOR_BATHROOM': 'MB',
-                 'Room.DRESSING_ROOM': 'DRS', 'Room.BEDROOM': 'BD', 'Room.SUNROOM': 'SR', 'Room.CORRIDOR': 'C', 'Room.OTHER': 'X'}
+ROOM_TYPE_MAP = {'Room.DININGROOM': 'DR', 'Room.KITCHEN': 'KT', 'Room.MAIN_BATHROOM': 'MB', 'Room.MINOR_BATHROOM': 'mb',
+                 'Room.DRESSING_ROOM': 'DRS', 'Room.BEDROOM': 'BD', 'Room.SUNROOM': 'SR', 'Room.CORRIDOR': 'C', 'Room.DUCT': 'D', 'Room.OTHER': 'X'}
 
 
 FLOOR_RIGHT_SIDE = FloorSide.OPEN
@@ -198,6 +200,26 @@ def add_corridor_constraint(n_corridors, apartment):
         model.Add(sum(adjacent_to_corridors) > 0)
 
 
+def add_duct_constraints(apartment_ducts, apartment):
+    assert(len(apartment_ducts) > 0)
+
+    for room in apartment:
+        if room.room_type == Room.KITCHEN or room.room_type == Room.MINOR_BATHROOM or room.room_type == Room.MAIN_BATHROOM:
+            adjacent_to_ducts = []
+            for duct in apartment_ducts:
+                adjacent_to_ducts.append(
+                    add_adjacency_constraint(room, duct, 0))
+            model.Add(sum(adjacent_to_ducts) > 0)
+
+    for duct in apartment_ducts:
+        duct_adjacent_to = []
+        for room in apartment:
+            if room.room_type == Room.KITCHEN or room.room_type == Room.MINOR_BATHROOM or room.room_type == Room.MAIN_BATHROOM:
+                duct_adjacent_to.append(
+                    add_adjacency_constraint(duct, room, 0))
+        model.Add(sum(duct_adjacent_to) > 0)
+
+
 def add_floor_corridor_constraints(apartments, floor_corridors):
     '''There has to be at least one corridor for the floor'''
     assert(len(floor_corridors) > 0)
@@ -348,9 +370,9 @@ def get_sun_reachability(grid):
 # Takes in the flattened version of the apartments, universal.
 
 
-def add_sunroom_constraints(sun_reachability, grid, flattened_rooms):
+def add_sunroom_constraints(sun_reachability, grid, flattened_floor):
     """For each sunrom, one of its cells must be reachable from the sun."""
-    for index, room in enumerate(flattened_rooms):
+    for index, room in enumerate(flattened_floor):
         if(room.room_type == Room.SUNROOM):
             is_reachable = []
             for i in range(MAX_DIM):
@@ -371,15 +393,21 @@ def add_sunroom_constraints(sun_reachability, grid, flattened_rooms):
 # If given |apartments| and |floor_corridors| it will flatten both together.
 
 
-def flatten(apartments, floor_corridors=[]):
-    flattened_rooms = []
+def flatten_floor(apartments, apartments_ducts, floor_corridors):
+    flattened_floor = []
+
     for apartment in apartments:
         for room in apartment:
-            flattened_rooms.append(room)
+            flattened_floor.append(room)
 
     for corridor in floor_corridors:
-        flattened_rooms.append(corridor)
-    return flattened_rooms
+        flattened_floor.append(corridor)
+
+    for apartment_ducts in apartments_ducts:
+        for duct in apartment_ducts:
+            flattened_floor.append(duct)
+
+    return flattened_floor
 
 ############ Debugging Functions ##################################
 
@@ -441,13 +469,13 @@ n_apartments = 2
 
 apartments = []
 apartment_corridors = []
-
+apartments_ducts = []
 
 model = cp_model.CpModel()
 for apartment_no in range(n_apartments):
     n_corridors = randint(1, 3)
-    apartment_corridors.append(n_corridors)
     n_rooms = 6 + n_corridors
+    apartment_corridors.append(n_corridors)
     min_area = [randint(1, 5) for i in range(n_rooms)]
     print(min_area)
     apartment = []
@@ -478,6 +506,14 @@ for apartment_no in range(n_apartments):
 
     apartments.append(apartment)
 
+    n_ducts = randint(1, 4)
+    apartment_ducts = []
+    for duct_no in range(n_ducts):
+        apartment_ducts.append(
+            Rectangle(Room.DUCT, apartment=apartment_no + 1))
+    apartments_ducts.append(apartment_ducts)
+
+
 n_floor_corridors = randint(1, 3)
 floor_corridors = []
 for i in range(n_floor_corridors):
@@ -488,18 +524,18 @@ for apartment in apartments:
     for room in apartment:
         room.add_room_constraints(apartment)
 
-flattened_rooms = flatten(apartments)
-flattened_floor = flatten(apartments, floor_corridors)
+flattened_floor = flatten_floor(apartments, apartments_ducts, floor_corridors)
 
 add_no_intersection_constraint(flattened_floor)
 add_floor_corridor_constraints(apartments, floor_corridors)
 
 for apartment_no, apartment in enumerate(apartments):
     add_corridor_constraint(apartment_corridors[apartment_no], apartment)
+    add_duct_constraints(apartments_ducts[apartment_no], apartment)
 
 grid = get_grid(flattened_floor)
 sun_reachability = get_sun_reachability(grid)
-add_sunroom_constraints(sun_reachability, grid, flattened_rooms)
+add_sunroom_constraints(sun_reachability, grid, flattened_floor)
 solver = cp_model.CpSolver()
 status = solver.Solve(model)
 print(solver.StatusName())
