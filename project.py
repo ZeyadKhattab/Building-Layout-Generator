@@ -21,7 +21,9 @@ class Room(Enum):
     BEDROOM = 7
     SUNROOM = 8
     CORRIDOR = 9
-    OTHER = 10
+    STAIR = 10
+    ELEVATOR = 11
+    OTHER = 12
 
 
 class FloorSide(Enum):
@@ -40,7 +42,8 @@ DI = [-1, 1, 0, 0]
 DJ = [0, 0, -1, 1]
 
 ROOM_TYPE_MAP = {'Room.DININGROOM': 'DR', 'Room.KITCHEN': 'KT', 'Room.MAIN_BATHROOM': 'MB', 'Room.MINOR_BATHROOM': 'mb',
-                 'Room.DRESSING_ROOM': 'DRS', 'Room.BEDROOM': 'BD', 'Room.SUNROOM': 'SR', 'Room.CORRIDOR': 'C', 'Room.DUCT': 'D', 'Room.OTHER': 'X'}
+                 'Room.DRESSING_ROOM': 'DRS', 'Room.BEDROOM': 'BD', 'Room.SUNROOM': 'SR', 'Room.CORRIDOR': 'C',
+                 'Room.DUCT': 'D', 'Room.STAIR': 'S', 'Room.ELEVATOR': 'E', 'Room.OTHER': 'X'}
 
 
 FLOOR_RIGHT_SIDE = FloorSide.OPEN
@@ -238,6 +241,11 @@ def add_floor_corridor_constraints(apartments, floor_corridors):
                     add_adjacency_constraint(room, corridor, 0))
         model.Add(sum(adjacent_to_corridors) > 0)
 
+
+def add_stair_elevator_constraints(stair, elevator, floor_corridors):
+    add_adjacency_constraint(stair, floor_corridors[0])
+    add_adjacency_constraint(elevator, floor_corridors[0])
+
 # Takes in the flattened version of the apartments, universal.
 # Consider corridors. For now it takes in all corridors.
 
@@ -393,7 +401,7 @@ def add_sunroom_constraints(sun_reachability, grid, flattened_floor):
 # If given |apartments| and |floor_corridors| it will flatten both together.
 
 
-def flatten_floor(apartments, apartments_ducts, floor_corridors):
+def flatten_floor(apartments, apartments_ducts, floor_corridors, stair, elevator):
     flattened_floor = []
 
     for apartment in apartments:
@@ -406,6 +414,9 @@ def flatten_floor(apartments, apartments_ducts, floor_corridors):
     for apartment_ducts in apartments_ducts:
         for duct in apartment_ducts:
             flattened_floor.append(duct)
+
+    flattened_floor.append(stair)
+    flattened_floor.append(elevator)
 
     return flattened_floor
 
@@ -513,6 +524,8 @@ for apartment_no in range(n_apartments):
             Rectangle(Room.DUCT, apartment=apartment_no + 1))
     apartments_ducts.append(apartment_ducts)
 
+stair = Rectangle(Room.STAIR, width=1, height=1)
+elevator = Rectangle(Room.ELEVATOR, width=1, height=1)
 
 n_floor_corridors = randint(1, 3)
 floor_corridors = []
@@ -524,10 +537,12 @@ for apartment in apartments:
     for room in apartment:
         room.add_room_constraints(apartment)
 
-flattened_floor = flatten_floor(apartments, apartments_ducts, floor_corridors)
+flattened_floor = flatten_floor(
+    apartments, apartments_ducts, floor_corridors, stair, elevator)
 
 add_no_intersection_constraint(flattened_floor)
 add_floor_corridor_constraints(apartments, floor_corridors)
+add_stair_elevator_constraints(stair, elevator, floor_corridors)
 
 for apartment_no, apartment in enumerate(apartments):
     add_corridor_constraint(apartment_corridors[apartment_no], apartment)
