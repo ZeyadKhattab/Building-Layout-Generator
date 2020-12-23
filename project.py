@@ -134,6 +134,71 @@ class Rectangle:
     def get_bottom(self):
         return self.end_row
 
+    def distance(self, other):
+        left = model.NewBoolVar('')
+        model.Add(other.end_col < self.start_col).OnlyEnforceIf(left)
+        model.Add(other.end_col >= self.start_col).OnlyEnforceIf(left.Not())
+        right = model.NewBoolVar('')
+        model.Add(self.end_col < other.start_col).OnlyEnforceIf(right)
+        model.Add(self.end_col >= other.start_col).OnlyEnforceIf(right.Not())
+
+        bottom = model.NewBoolVar('')
+        model.Add(other.start_row > self.end_row).OnlyEnforceIf(bottom)
+        model.Add(other.start_row <= self.end_row).OnlyEnforceIf(bottom.Not())
+
+        top = model.NewBoolVar('')
+        model.Add(other.end_row < self.start_row).OnlyEnforceIf(top)
+        model.Add(other.end_row >= self.start_row).OnlyEnforceIf(top.Not())
+
+        dist = model.NewIntVar(0, MAX_DIM*MAX_DIM, '')
+
+        model.Add(dist == (self.start_col - other.end_col) +
+                  (self.start_row - other.end_row)).OnlyEnforceIf([top, left])
+
+        model.Add(dist == (self.start_col - other.end_col) +
+                  (other.start_row - self.end_row)).OnlyEnforceIf([bottom, left])
+
+        model.Add(dist == other.start_row-self.end_row+other.start_col -
+                  self.end_col).OnlyEnforceIf([bottom, right])
+        model.Add(dist == self.start_row-other.end_row+other.start_col -
+                  self.end_col).OnlyEnforceIf([right, top])
+
+        top_left = model.NewBoolVar('')
+        model.Add(top_left == 1).OnlyEnforceIf([top, left])
+        model.AddImplication(top.Not(), top_left.Not())
+        model.AddImplication(left.Not(), top_left.Not())
+
+        bottom_left = model.NewBoolVar('')
+        model.Add(bottom_left == 1).OnlyEnforceIf([bottom, left])
+        model.AddImplication(bottom.Not(), bottom_left.Not())
+        model.AddImplication(left.Not(), bottom_left.Not())
+
+        top_right = model.NewBoolVar('')
+        model.Add(top_right == 1).OnlyEnforceIf([top, right])
+        model.AddImplication(top.Not(), top_right.Not())
+        model.AddImplication(right.Not(), top_right.Not())
+
+        bottom_right = model.NewBoolVar('')
+        model.Add(bottom_right == 1).OnlyEnforceIf([bottom, right])
+        model.AddImplication(bottom.Not(), bottom_right.Not())
+        model.AddImplication(right.Not(), bottom_right.Not())
+
+        model.Add(dist == self.start_col - other.end_col).OnlyEnforceIf(
+            [left, bottom_right.Not(), bottom_left.Not(), top_right.Not(), top_left.Not()])
+
+        model.Add(dist == other.start_col - self.end_col).OnlyEnforceIf(
+            [right, bottom_right.Not(), bottom_left.Not(), top_right.Not(), top_left.Not()])
+
+        model.Add(dist == self.start_row - other.end_row).OnlyEnforceIf(
+            [top, bottom_right.Not(), bottom_left.Not(), top_right.Not(), top_left.Not()])
+
+        model.Add(dist == other.start_row - self.end_row).OnlyEnforceIf(
+            [bottom, bottom_right.Not(), bottom_left.Not(), top_right.Not(), top_left.Not()])
+
+        model.Add(dist == 0).OnlyEnforceIf(
+            [top.Not(), bottom.Not(), left.Not(), right.Not()])
+
+        return dist
 ########################   Classes   ########################
 
 
@@ -189,10 +254,14 @@ def add_adjacency_constraint(room, adjacent_room, add=1):
 def add_corridor_constraint(n_corridors, apartment):
     '''The last nOfCorriodors should have type corridor'''
     assert(n_corridors > 0)
+    for room_no in range(len(apartment) - n_corridors, len(apartment)):
+        assert(apartment[room_no].room_type == Room.CORRIDOR)
+
     n_rooms = len(apartment)
     # All the corriods are adjacent to each other
-    for i in range(n_rooms-n_corridors, n_rooms-1):
-        add_adjacency_constraint(apartment[i], apartment[i+1])
+    main_corridor = apartment[n_rooms-n_corridors]
+    for i in range(n_rooms-n_corridors + 1, n_rooms):
+        add_adjacency_constraint(apartment[i], main_corridor)
     for i in range(n_rooms-n_corridors):
         current_room = apartment[i]
         adjacent_to_corridors = []
@@ -203,20 +272,20 @@ def add_corridor_constraint(n_corridors, apartment):
         model.Add(sum(adjacent_to_corridors) > 0)
 
 
-def add_duct_constraints(apartment_ducts, apartment):
-    assert(len(apartment_ducts) > 0)
+def add_duct_constraints(ducts, flattened_floor):
+    assert(len(ducts) > 0)
 
-    for room in apartment:
+    for room in flattened_floor:
         if room.room_type == Room.KITCHEN or room.room_type == Room.MINOR_BATHROOM or room.room_type == Room.MAIN_BATHROOM:
             adjacent_to_ducts = []
-            for duct in apartment_ducts:
+            for duct in ducts:
                 adjacent_to_ducts.append(
                     add_adjacency_constraint(room, duct, 0))
             model.Add(sum(adjacent_to_ducts) > 0)
 
-    for duct in apartment_ducts:
+    for duct in ducts:
         duct_adjacent_to = []
-        for room in apartment:
+        for room in flattened_floor:
             if room.room_type == Room.KITCHEN or room.room_type == Room.MINOR_BATHROOM or room.room_type == Room.MAIN_BATHROOM:
                 duct_adjacent_to.append(
                     add_adjacency_constraint(duct, room, 0))
@@ -228,23 +297,53 @@ def add_floor_corridor_constraints(apartments, floor_corridors):
     assert(len(floor_corridors) > 0)
 
     n_floor_corridors = len(floor_corridors)
-    # All floor corridors are adjacent to each other
-    for i in range(n_floor_corridors - 1):
-        add_adjacency_constraint(floor_corridors[i], floor_corridors[i + 1])
+    # Corridor 0 is the main corridor and all other corridors are adjacent to it
+    for i in range(1, n_floor_corridors):
+        add_adjacency_constraint(floor_corridors[i], floor_corridors[0])
 
-    # At least one room from each apartment is adjacent to a corridor
+    # The main corridor for each apartment is adjacent to one of the floor corridors
     for apartment in apartments:
         adjacent_to_corridors = []
         for room in apartment:
-            for corridor in floor_corridors:
-                adjacent_to_corridors.append(
-                    add_adjacency_constraint(room, corridor, 0))
+            if room.room_type == Room.CORRIDOR:
+                for corridor in floor_corridors:
+                    adjacent_to_corridors.append(
+                        add_adjacency_constraint(room, corridor, 0))
+                break
+
         model.Add(sum(adjacent_to_corridors) > 0)
 
 
 def add_stair_elevator_constraints(stair, elevator, floor_corridors):
-    add_adjacency_constraint(stair, floor_corridors[0])
-    add_adjacency_constraint(elevator, floor_corridors[0])
+
+    stair_adjacent_to = []
+    elevator_adjacent_to = []
+
+    for floor_corridor in floor_corridors:
+        stair_adjacent_to.append(
+            add_adjacency_constraint(stair, floor_corridor, 0))
+        elevator_adjacent_to.append(
+            add_adjacency_constraint(elevator, floor_corridor, 0))
+
+    model.Add(sum(stair_adjacent_to) > 0)
+    model.Add(sum(elevator_adjacent_to) > 0)
+
+
+def get_apartment_main_corridor(apartment):
+    for room in apartment:
+        if room.room_type == Room.CORRIDOR:
+            return room
+
+
+def add_elevator_distance_constraint(elevator, apartments):
+    distance_to_elevator = []
+
+    for apartment in apartments:
+        main_corridor = get_apartment_main_corridor(apartment)
+        distance_to_elevator.append(main_corridor.distance(elevator))
+
+    for i in range(len(distance_to_elevator) - 1):
+        model.Add(distance_to_elevator[i] == distance_to_elevator[i + 1])
 
 # Takes in the flattened version of the apartments, universal.
 # Consider corridors. For now it takes in all corridors.
@@ -429,7 +528,7 @@ def add_sunroom_constraint(sun_reachability, grid, flattened_floor):
 # If given |apartments| and |floor_corridors| it will flatten both together.
 
 
-def flatten_floor(apartments, apartments_ducts, floor_corridors, stair, elevator):
+def flatten_floor(apartments, ducts, floor_corridors, stair, elevator):
     flattened_floor = []
 
     for apartment in apartments:
@@ -439,9 +538,8 @@ def flatten_floor(apartments, apartments_ducts, floor_corridors, stair, elevator
     for corridor in floor_corridors:
         flattened_floor.append(corridor)
 
-    for apartment_ducts in apartments_ducts:
-        for duct in apartment_ducts:
-            flattened_floor.append(duct)
+    for duct in ducts:
+        flattened_floor.append(duct)
 
     flattened_floor.append(stair)
     flattened_floor.append(elevator)
@@ -491,6 +589,10 @@ def visualize_floor(flattened_floor, grid):
                 room_type = Room.OTHER
                 apartment_num = ''
                 heatmap_text = ROOM_TYPE_MAP[str(room_type)]
+
+            if room_type == Room.DUCT:
+                heatmap_text = ROOM_TYPE_MAP[str(room_type)]
+
             visualized_output[i][j] = value
             ax.text(
                 j, i, heatmap_text, ha='center', va='center')
@@ -508,7 +610,7 @@ n_apartments = 2
 
 apartments = []
 apartment_corridors = []
-apartments_ducts = []
+ducts = []
 
 model = cp_model.CpModel()
 for apartment_no in range(n_apartments):
@@ -545,12 +647,9 @@ for apartment_no in range(n_apartments):
 
     apartments.append(apartment)
 
-    n_ducts = randint(1, 4)
-    apartment_ducts = []
-    for duct_no in range(n_ducts):
-        apartment_ducts.append(
-            Rectangle(Room.DUCT, apartment=apartment_no + 1))
-    apartments_ducts.append(apartment_ducts)
+n_ducts = n_apartments - 1
+for duct_no in range(n_ducts):
+    ducts.append(Rectangle(Room.DUCT))
 
 stair = Rectangle(Room.STAIR, width=1, height=1)
 elevator = Rectangle(Room.ELEVATOR, width=1, height=1)
@@ -566,16 +665,24 @@ for apartment in apartments:
         room.add_room_constraints(apartment)
 
 flattened_floor = flatten_floor(
-    apartments, apartments_ducts, floor_corridors, stair, elevator)
+    apartments, ducts, floor_corridors, stair, elevator)
 
 add_no_intersection_constraint(flattened_floor)
 add_floor_corridor_constraints(apartments, floor_corridors)
 add_stair_elevator_constraints(stair, elevator, floor_corridors)
+add_elevator_distance_constraint(elevator, apartments)
+
+add_duct_constraints(ducts, flattened_floor)
 
 for apartment_no, apartment in enumerate(apartments):
     add_corridor_constraint(apartment_corridors[apartment_no], apartment)
-    add_duct_constraints(apartments_ducts[apartment_no], apartment)
-
+# dist = []
+# for i in range(len(flattened_floor)):
+#     curr = []
+#     for j in range(len(flattened_floor)):
+#         curr.append(flattened_floor[i].distance(flattened_floor[j]))
+#     dist.append(curr)
+# # dist = apartments[0][0].distance(apartments[0][0])
 grid = get_grid(flattened_floor)
 sun_reachability = get_sun_reachability(grid)
 add_sunroom_constraint(sun_reachability, grid, flattened_floor)
@@ -594,4 +701,9 @@ print('time = ', solver.WallTime())
 
 check_grid(flattened_floor, grid)
 
+# for i in range(len(flattened_floor)):
+#     for j in range(len(flattened_floor)):
+#         print(i, j, flattened_floor[i].room_type, flattened_floor[i].apartment,
+#               flattened_floor[j].room_type, flattened_floor[j].apartment, solver.Value(dist[i][j]))
+# # print(solver.Value(dist))
 visualize_floor(flattened_floor, grid)
