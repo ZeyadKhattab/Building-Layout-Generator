@@ -254,10 +254,14 @@ def add_adjacency_constraint(room, adjacent_room, add=1):
 def add_corridor_constraint(n_corridors, apartment):
     '''The last nOfCorriodors should have type corridor'''
     assert(n_corridors > 0)
+    for room_no in range(len(apartment) - n_corridors, len(apartment)):
+        assert(apartment[room_no].room_type == Room.CORRIDOR)
+
     n_rooms = len(apartment)
     # All the corriods are adjacent to each other
-    for i in range(n_rooms-n_corridors, n_rooms-1):
-        add_adjacency_constraint(apartment[i], apartment[i+1])
+    main_corridor = apartment[n_rooms-n_corridors]
+    for i in range(n_rooms-n_corridors + 1, n_rooms):
+        add_adjacency_constraint(apartment[i], main_corridor)
     for i in range(n_rooms-n_corridors):
         current_room = apartment[i]
         adjacent_to_corridors = []
@@ -293,23 +297,36 @@ def add_floor_corridor_constraints(apartments, floor_corridors):
     assert(len(floor_corridors) > 0)
 
     n_floor_corridors = len(floor_corridors)
-    # All floor corridors are adjacent to each other
-    for i in range(n_floor_corridors - 1):
-        add_adjacency_constraint(floor_corridors[i], floor_corridors[i + 1])
+    # Corridor 0 is the main corridor and all other corridors are adjacent to it
+    for i in range(1, n_floor_corridors):
+        add_adjacency_constraint(floor_corridors[i], floor_corridors[0])
 
-    # At least one room from each apartment is adjacent to a corridor
+    # The main corridor for each apartment is adjacent to one of the floor corridors
     for apartment in apartments:
         adjacent_to_corridors = []
         for room in apartment:
-            for corridor in floor_corridors:
-                adjacent_to_corridors.append(
-                    add_adjacency_constraint(room, corridor, 0))
+            if room.room_type == Room.CORRIDOR:
+                for corridor in floor_corridors:
+                    adjacent_to_corridors.append(
+                        add_adjacency_constraint(room, corridor, 0))
+                break
+
         model.Add(sum(adjacent_to_corridors) > 0)
 
 
 def add_stair_elevator_constraints(stair, elevator, floor_corridors):
-    add_adjacency_constraint(stair, floor_corridors[0])
-    add_adjacency_constraint(elevator, floor_corridors[0])
+
+    stair_adjacent_to = []
+    elevator_adjacent_to = []
+
+    for floor_corridor in floor_corridors:
+        stair_adjacent_to.append(
+            add_adjacency_constraint(stair, floor_corridor, 0))
+        elevator_adjacent_to.append(
+            add_adjacency_constraint(elevator, floor_corridor, 0))
+
+    model.Add(sum(stair_adjacent_to) > 0)
+    model.Add(sum(elevator_adjacent_to) > 0)
 
 # Takes in the flattened version of the apartments, universal.
 # Consider corridors. For now it takes in all corridors.
