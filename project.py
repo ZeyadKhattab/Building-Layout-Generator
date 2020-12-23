@@ -23,7 +23,8 @@ class Room(Enum):
     CORRIDOR = 9
     STAIR = 10
     ELEVATOR = 11
-    OTHER = 12
+    LIVING_ROOM = 12
+    OTHER = 13
 
 
 class FloorSide(Enum):
@@ -43,7 +44,7 @@ DJ = [0, 0, -1, 1]
 
 ROOM_TYPE_MAP = {'Room.DININGROOM': 'DR', 'Room.KITCHEN': 'KT', 'Room.MAIN_BATHROOM': 'MB', 'Room.MINOR_BATHROOM': 'mb',
                  'Room.DRESSING_ROOM': 'DRS', 'Room.BEDROOM': 'BD', 'Room.SUNROOM': 'SR', 'Room.CORRIDOR': 'C',
-                 'Room.DUCT': 'D', 'Room.STAIR': 'S', 'Room.ELEVATOR': 'E', 'Room.OTHER': 'X'}
+                 'Room.DUCT': 'D', 'Room.STAIR': 'S', 'Room.ELEVATOR': 'E', 'Room.LIVING_ROOM': 'LR', 'Room.OTHER': 'X'}
 
 
 FLOOR_RIGHT_SIDE = FloorSide.OPEN
@@ -345,6 +346,37 @@ def add_elevator_distance_constraint(elevator, apartments):
     for i in range(len(distance_to_elevator) - 1):
         model.Add(distance_to_elevator[i] == distance_to_elevator[i + 1])
 
+
+def max_distance_to_bathroom(apartment):
+    main_bathroom = None
+
+    for room in apartment:
+        if room.room_type == Room.MAIN_BATHROOM:
+            main_bathroom = room
+
+    assert(main_bathroom)
+    living_room_distance = None
+    others_distance = []
+    max_others_distance = model.NewIntVar(0, 2*MAX_DIM, '')
+
+    for room in apartment:
+        if room.room_type == Room.LIVING_ROOM:
+            living_room_distance = room.distance(main_bathroom)
+        else:
+            others_distance.append(room.distance(main_bathroom))
+
+    model.AddMaxEquality(max_others_distance, others_distance)
+    if living_room_distance:
+        living_room_distance_x2 = model.NewIntVar(0, 2*2*MAX_DIM, '')
+        model.AddMultiplicationEquality(living_room_distance_x2, [
+                                        2, living_room_distance])
+        summation = model.NewIntVar(0, 3*MAX_DIM, '')
+        model.Add(summation == living_room_distance_x2+max_others_distance)
+        return summation
+    else:
+        return max_others_distance
+    # return living_room_distance, max_others_distance
+
 # Takes in the flattened version of the apartments, universal.
 # Consider corridors. For now it takes in all corridors.
 
@@ -477,24 +509,52 @@ def get_sun_reachability(grid):
 # Takes in the flattened version of the apartments, universal.
 
 
-def add_sunroom_constraints(sun_reachability, grid, flattened_floor):
+def add_sun_reachability(sun_reachability, grid, flattened_floor, room_idx):
     """For each sunrom, one of its cells must be reachable from the sun."""
-    for index, room in enumerate(flattened_floor):
-        if(room.room_type == Room.SUNROOM):
-            is_reachable = []
-            for i in range(MAX_DIM):
-                for j in range(MAX_DIM):
-                    # if grid[i][j]==index and sun_reachability[i][j]==1 then true
-                    b = model.NewBoolVar('')
-                    in_room = model.NewBoolVar('')
-                    model.Add(grid[i][j] == index).OnlyEnforceIf(in_room)
-                    model.Add(grid[i][j] != index).OnlyEnforceIf(in_room.Not())
-                    model.Add(b == 1).OnlyEnforceIf(
-                        [in_room, sun_reachability[i][j]])
-                    model.AddImplication(in_room.Not(), b.Not())
-                    model.AddImplication(sun_reachability[i][j].Not(), b.Not())
-                    is_reachable.append(b)
-            model.Add(sum(is_reachable) > 0)
+
+    is_cells_reachable = []
+    for i in range(MAX_DIM):
+        for j in range(MAX_DIM):
+            # if grid[i][j]==index and sun_reachability[i][j]==1 then true
+            is_cell_reachable = model.NewBoolVar('')
+            in_room = model.NewBoolVar('')
+            model.Add(grid[i][j] == room_idx).OnlyEnforceIf(in_room)
+            model.Add(grid[i][j] != room_idx).OnlyEnforceIf(in_room.Not())
+            model.Add(is_cell_reachable == 1).OnlyEnforceIf(
+                [in_room, sun_reachability[i][j]])
+            model.AddImplication(
+                in_room.Not(), is_cell_reachable.Not())
+            model.AddImplication(
+                sun_reachability[i][j].Not(), is_cell_reachable.Not())
+            is_cells_reachable.append(is_cell_reachable)
+
+    is_room_reachable = model.NewBoolVar('')
+    model.Add(sum(is_cells_reachable) > 0).OnlyEnforceIf(is_room_reachable)
+    model.Add(sum(is_cells_reachable) == 0).OnlyEnforceIf(
+        is_room_reachable.Not())
+
+    if flattened_floor[room_idx].room_type == Room.SUNROOM:
+        model.Add(is_room_reachable == 1)
+
+    return is_room_reachable
+
+
+def add_soft_sun_reachability_constraint(sun_reachability, grid, flattened_floor):
+    is_room_sun_reachable = []
+
+    for room_idx, room in enumerate(flattened_floor):
+        if room.room_type != Room.DUCT and room.room_type != Room.STAIR and room.room_type != Room.ELEVATOR and room.room_type != Room.SUNROOM:
+            is_room_sun_reachable.append(add_sun_reachability(sun_reachability, grid,
+                                                              flattened_floor, room_idx))
+
+    return sum(is_room_sun_reachable)
+
+
+def add_sunroom_constraint(sun_reachability, grid, flattened_floor):
+    for room_idx, room in enumerate(flattened_floor):
+        if room.room_type == Room.SUNROOM:
+            add_sun_reachability(sun_reachability, grid,
+                                 flattened_floor, room_idx)
 
 # If given |apartments| only, it will flatten the apartments.
 # If given |apartments| and |floor_corridors| it will flatten both together.
@@ -601,18 +661,22 @@ for apartment_no in range(n_apartments):
         room_type = Room.OTHER
         adjacent_to = -1
         if i == 0:
-            room_type = Room.KITCHEN
-        elif i == 1:
-            room_type = Room.DININGROOM
+            room_type = Room.MAIN_BATHROOM
+        if i == 1:
+            room_type = Room.LIVING_ROOM
         elif i == 2:
+            room_type = Room.KITCHEN
+        elif i == 3:
+            room_type = Room.DININGROOM
+        elif i == 4:
             room_type = Room.MINOR_BATHROOM
             adjacent_to = 0
-        elif i == 3:
+        elif i == 5:
             room_type = Room.BEDROOM
-        elif i == 4:
+        elif i == 6:
             room_type = Room.DRESSING_ROOM
             adjacent_to = 3
-        elif i == 5:
+        elif i == 7:
             room_type = Room.SUNROOM
         apartment.append(
             Rectangle(room_type, min_area[i], adjacent_to=adjacent_to, apartment=apartment_no + 1))
@@ -646,8 +710,16 @@ add_elevator_distance_constraint(elevator, apartments)
 
 add_duct_constraints(ducts, flattened_floor)
 
+distances_to_main_bathroom = []
+
 for apartment_no, apartment in enumerate(apartments):
     add_corridor_constraint(apartment_corridors[apartment_no], apartment)
+    distances_to_main_bathroom.append(
+        max_distance_to_bathroom(apartment))
+
+# The * 3 here is for the summation of the coefficients (* 2, * 1).
+max_distance_to_bathroom = model.NewIntVar(0, MAX_DIM * 2*3, '')
+model.AddMaxEquality(max_distance_to_bathroom, distances_to_main_bathroom)
 # dist = []
 # for i in range(len(flattened_floor)):
 #     curr = []
@@ -657,11 +729,19 @@ for apartment_no, apartment in enumerate(apartments):
 # # dist = apartments[0][0].distance(apartments[0][0])
 grid = get_grid(flattened_floor)
 sun_reachability = get_sun_reachability(grid)
-add_sunroom_constraints(sun_reachability, grid, flattened_floor)
+add_sunroom_constraint(sun_reachability, grid, flattened_floor)
+
+# model.Maximize(add_soft_sun_reachability_constraint(
+#     sun_reachability, grid, flattened_floor) * 1)
+# model.Maximize(-1*max_distance_to_bathroom +
+#                add_soft_sun_reachability_constraint(sun_reachability, grid, flattened_floor) * 1)
 solver = cp_model.CpSolver()
 status = solver.Solve(model)
 print(solver.StatusName())
 print('time = ', solver.WallTime())
+
+for idx in range(len(distances_to_main_bathroom)):
+    print(solver.Value(distances_to_main_bathroom[idx]))
 
 ########################   Main Method Ends Here   ##########################
 
