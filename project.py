@@ -134,6 +134,71 @@ class Rectangle:
     def get_bottom(self):
         return self.end_row
 
+    def distance(self, other):
+        left = model.NewBoolVar('')
+        model.Add(other.end_col < self.start_col).OnlyEnforceIf(left)
+        model.Add(other.end_col >= self.start_col).OnlyEnforceIf(left.Not())
+        right = model.NewBoolVar('')
+        model.Add(self.end_col < other.start_col).OnlyEnforceIf(right)
+        model.Add(self.end_col >= other.start_col).OnlyEnforceIf(right.Not())
+
+        bottom = model.NewBoolVar('')
+        model.Add(other.start_row > self.end_row).OnlyEnforceIf(bottom)
+        model.Add(other.start_row <= self.end_row).OnlyEnforceIf(bottom.Not())
+
+        top = model.NewBoolVar('')
+        model.Add(other.end_row < self.start_row).OnlyEnforceIf(top)
+        model.Add(other.end_row >= self.start_row).OnlyEnforceIf(top.Not())
+
+        dist = model.NewIntVar(0, MAX_DIM*MAX_DIM, '')
+
+        model.Add(dist == (self.start_col - other.end_col) +
+                  (self.start_row - other.end_row)).OnlyEnforceIf([top, left])
+
+        model.Add(dist == (self.start_col - other.end_col) +
+                  (other.start_row - self.end_row)).OnlyEnforceIf([bottom, left])
+
+        model.Add(dist == other.start_row-self.end_row+other.start_col -
+                  self.end_col).OnlyEnforceIf([bottom, right])
+        model.Add(dist == self.start_row-other.end_row+other.start_col -
+                  self.end_col).OnlyEnforceIf([right, top])
+
+        top_left = model.NewBoolVar('')
+        model.Add(top_left == 1).OnlyEnforceIf([top, left])
+        model.AddImplication(top.Not(), top_left.Not())
+        model.AddImplication(left.Not(), top_left.Not())
+
+        bottom_left = model.NewBoolVar('')
+        model.Add(bottom_left == 1).OnlyEnforceIf([bottom, left])
+        model.AddImplication(bottom.Not(), bottom_left.Not())
+        model.AddImplication(left.Not(), bottom_left.Not())
+
+        top_right = model.NewBoolVar('')
+        model.Add(top_right == 1).OnlyEnforceIf([top, right])
+        model.AddImplication(top.Not(), top_right.Not())
+        model.AddImplication(right.Not(), top_right.Not())
+
+        bottom_right = model.NewBoolVar('')
+        model.Add(bottom_right == 1).OnlyEnforceIf([bottom, right])
+        model.AddImplication(bottom.Not(), bottom_right.Not())
+        model.AddImplication(right.Not(), bottom_right.Not())
+
+        model.Add(dist == self.start_col - other.end_col).OnlyEnforceIf(
+            [left, bottom_right.Not(), bottom_left.Not(), top_right.Not(), top_left.Not()])
+
+        model.Add(dist == other.start_col - self.end_col).OnlyEnforceIf(
+            [right, bottom_right.Not(), bottom_left.Not(), top_right.Not(), top_left.Not()])
+
+        model.Add(dist == self.start_row - other.end_row).OnlyEnforceIf(
+            [top, bottom_right.Not(), bottom_left.Not(), top_right.Not(), top_left.Not()])
+
+        model.Add(dist == other.start_row - self.end_row).OnlyEnforceIf(
+            [bottom, bottom_right.Not(), bottom_left.Not(), top_right.Not(), top_left.Not()])
+
+        model.Add(dist == 0).OnlyEnforceIf(
+            [top.Not(), bottom.Not(), left.Not(), right.Not()])
+
+        return dist
 ########################   Classes   ########################
 
 
@@ -548,7 +613,13 @@ add_duct_constraints(ducts, flattened_floor)
 
 for apartment_no, apartment in enumerate(apartments):
     add_corridor_constraint(apartment_corridors[apartment_no], apartment)
-
+# dist = []
+# for i in range(len(flattened_floor)):
+#     curr = []
+#     for j in range(len(flattened_floor)):
+#         curr.append(flattened_floor[i].distance(flattened_floor[j]))
+#     dist.append(curr)
+# # dist = apartments[0][0].distance(apartments[0][0])
 grid = get_grid(flattened_floor)
 sun_reachability = get_sun_reachability(grid)
 add_sunroom_constraints(sun_reachability, grid, flattened_floor)
@@ -563,4 +634,9 @@ print('time = ', solver.WallTime())
 
 check_grid(flattened_floor, grid)
 
+# for i in range(len(flattened_floor)):
+#     for j in range(len(flattened_floor)):
+#         print(i, j, flattened_floor[i].room_type, flattened_floor[i].apartment,
+#               flattened_floor[j].room_type, flattened_floor[j].apartment, solver.Value(dist[i][j]))
+# # print(solver.Value(dist))
 visualize_floor(flattened_floor, grid)
