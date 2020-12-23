@@ -647,7 +647,7 @@ ducts = []
 model = cp_model.CpModel()
 for apartment_no in range(n_apartments):
     n_corridors = randint(1, 3)
-    n_rooms = 4 + n_corridors
+    n_rooms = 6 + n_corridors
     apartment_corridors.append(n_corridors)
     min_area = [randint(1, 5) for i in range(n_rooms)]
     print(min_area)
@@ -733,7 +733,8 @@ add_sunroom_constraint(sun_reachability, grid, flattened_floor)
 
 # model.Maximize(add_soft_sun_reachability_constraint(
 #     sun_reachability, grid, flattened_floor) * 1)
-model.Maximize(-1*max_distance_to_bathroom)
+# model.Maximize(-1*max_distance_to_bathroom +
+#                add_soft_sun_reachability_constraint(sun_reachability, grid, flattened_floor) * 1)
 solver = cp_model.CpSolver()
 status = solver.Solve(model)
 print(solver.StatusName())
