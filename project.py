@@ -328,6 +328,23 @@ def add_stair_elevator_constraints(stair, elevator, floor_corridors):
     model.Add(sum(stair_adjacent_to) > 0)
     model.Add(sum(elevator_adjacent_to) > 0)
 
+
+def get_apartment_main_corridor(apartment):
+    for room in apartment:
+        if room.room_type == Room.CORRIDOR:
+            return room
+
+
+def add_elevator_distance_constraint(elevator, apartments):
+    distance_to_elevator = []
+
+    for apartment in apartments:
+        main_corridor = get_apartment_main_corridor(apartment)
+        distance_to_elevator.append(main_corridor.distance(elevator))
+
+    for i in range(len(distance_to_elevator) - 1):
+        model.Add(distance_to_elevator[i] == distance_to_elevator[i + 1])
+
 # Takes in the flattened version of the apartments, universal.
 # Consider corridors. For now it takes in all corridors.
 
@@ -625,6 +642,7 @@ flattened_floor = flatten_floor(
 add_no_intersection_constraint(flattened_floor)
 add_floor_corridor_constraints(apartments, floor_corridors)
 add_stair_elevator_constraints(stair, elevator, floor_corridors)
+add_elevator_distance_constraint(elevator, apartments)
 
 add_duct_constraints(ducts, flattened_floor)
 
