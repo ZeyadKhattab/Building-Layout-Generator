@@ -203,20 +203,20 @@ def add_corridor_constraint(n_corridors, apartment):
         model.Add(sum(adjacent_to_corridors) > 0)
 
 
-def add_duct_constraints(apartment_ducts, apartment):
-    assert(len(apartment_ducts) > 0)
+def add_duct_constraints(ducts, flattened_floor):
+    assert(len(ducts) > 0)
 
-    for room in apartment:
+    for room in flattened_floor:
         if room.room_type == Room.KITCHEN or room.room_type == Room.MINOR_BATHROOM or room.room_type == Room.MAIN_BATHROOM:
             adjacent_to_ducts = []
-            for duct in apartment_ducts:
+            for duct in ducts:
                 adjacent_to_ducts.append(
                     add_adjacency_constraint(room, duct, 0))
             model.Add(sum(adjacent_to_ducts) > 0)
 
-    for duct in apartment_ducts:
+    for duct in ducts:
         duct_adjacent_to = []
-        for room in apartment:
+        for room in flattened_floor:
             if room.room_type == Room.KITCHEN or room.room_type == Room.MINOR_BATHROOM or room.room_type == Room.MAIN_BATHROOM:
                 duct_adjacent_to.append(
                     add_adjacency_constraint(duct, room, 0))
@@ -401,7 +401,7 @@ def add_sunroom_constraints(sun_reachability, grid, flattened_floor):
 # If given |apartments| and |floor_corridors| it will flatten both together.
 
 
-def flatten_floor(apartments, apartments_ducts, floor_corridors, stair, elevator):
+def flatten_floor(apartments, ducts, floor_corridors, stair, elevator):
     flattened_floor = []
 
     for apartment in apartments:
@@ -411,9 +411,8 @@ def flatten_floor(apartments, apartments_ducts, floor_corridors, stair, elevator
     for corridor in floor_corridors:
         flattened_floor.append(corridor)
 
-    for apartment_ducts in apartments_ducts:
-        for duct in apartment_ducts:
-            flattened_floor.append(duct)
+    for duct in ducts:
+        flattened_floor.append(duct)
 
     flattened_floor.append(stair)
     flattened_floor.append(elevator)
@@ -463,6 +462,10 @@ def visualize_floor(flattened_floor, grid):
                 room_type = Room.OTHER
                 apartment_num = ''
                 heatmap_text = ROOM_TYPE_MAP[str(room_type)]
+
+            if room_type == Room.DUCT:
+                heatmap_text = ROOM_TYPE_MAP[str(room_type)]
+
             visualized_output[i][j] = value
             ax.text(
                 j, i, heatmap_text, ha='center', va='center')
@@ -480,7 +483,7 @@ n_apartments = 2
 
 apartments = []
 apartment_corridors = []
-apartments_ducts = []
+ducts = []
 
 model = cp_model.CpModel()
 for apartment_no in range(n_apartments):
@@ -517,12 +520,9 @@ for apartment_no in range(n_apartments):
 
     apartments.append(apartment)
 
-    n_ducts = randint(1, 4)
-    apartment_ducts = []
-    for duct_no in range(n_ducts):
-        apartment_ducts.append(
-            Rectangle(Room.DUCT, apartment=apartment_no + 1))
-    apartments_ducts.append(apartment_ducts)
+n_ducts = n_apartments - 1
+for duct_no in range(n_ducts):
+    ducts.append(Rectangle(Room.DUCT))
 
 stair = Rectangle(Room.STAIR, width=1, height=1)
 elevator = Rectangle(Room.ELEVATOR, width=1, height=1)
@@ -538,15 +538,16 @@ for apartment in apartments:
         room.add_room_constraints(apartment)
 
 flattened_floor = flatten_floor(
-    apartments, apartments_ducts, floor_corridors, stair, elevator)
+    apartments, ducts, floor_corridors, stair, elevator)
 
 add_no_intersection_constraint(flattened_floor)
 add_floor_corridor_constraints(apartments, floor_corridors)
 add_stair_elevator_constraints(stair, elevator, floor_corridors)
 
+add_duct_constraints(ducts, flattened_floor)
+
 for apartment_no, apartment in enumerate(apartments):
     add_corridor_constraint(apartment_corridors[apartment_no], apartment)
-    add_duct_constraints(apartments_ducts[apartment_no], apartment)
 
 grid = get_grid(flattened_floor)
 sun_reachability = get_sun_reachability(grid)
