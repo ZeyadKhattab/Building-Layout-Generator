@@ -411,6 +411,9 @@ def add_bedrooms_constraint(apartment):
 
 
 def enforce_distance_constraint(first_room, second_room, distance, equality):
+    assert(distance < 2 * MAX_DIM)
+    assert(equality == Equality.GREATER_THAN or equality == Equality.LESS_THAN)
+
     rooms_distance = model.NewIntVar(0, 2 * MAX_DIM, '')
     rooms_distance = first_room.distance(second_room)
 
