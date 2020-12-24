@@ -11,6 +11,12 @@ from random import randint
 
 ########################   Enums   ########################
 
+class Equality(Enum):
+    GREATER_THAN = 0
+    LESS_THAN = 1
+    NONE = 2
+
+
 class Room(Enum):
     DININGROOM = 1
     KITCHEN = 2
@@ -377,6 +383,51 @@ def max_distance_to_bathroom(apartment):
         return max_others_distance
     # return living_room_distance, max_others_distance
 
+
+def get_bedrooms(apartment):
+    bedrooms = []
+
+    for room in apartment:
+        if room.room_type == Room.BEDROOM:
+            bedrooms.append(room)
+
+    return bedrooms
+
+
+def add_bedrooms_constraint(apartment):
+    bedrooms = get_bedrooms(apartment)
+
+    bedroom_distances = [0]
+
+    for i in range(len(bedrooms)):
+        for j in range(i):
+            bedroom_distances.append(bedrooms[i].distance(bedrooms[j]))
+
+    max_bedrooms_distance = model.NewIntVar(0, 2 * MAX_DIM, '')
+    model.AddMaxEquality(max_bedrooms_distance, bedroom_distances)
+
+    return max_bedrooms_distance
+
+
+def enforce_distance_constraint(first_room, second_room, distance, equality):
+    assert(distance < 2 * MAX_DIM)
+    assert(equality == Equality.GREATER_THAN or equality == Equality.LESS_THAN)
+
+    rooms_distance = model.NewIntVar(0, 2 * MAX_DIM, '')
+    rooms_distance = first_room.distance(second_room)
+
+    satisfied = model.NewBoolVar('')
+
+    if equality == Equality.GREATER_THAN:
+        model.Add(rooms_distance > distance).OnlyEnforceIf(satisfied)
+        model.Add(rooms_distance <= distance).OnlyEnforceIf(satisfied.Not())
+        return satisfied
+
+    model.Add(rooms_distance < distance).OnlyEnforceIf(satisfied)
+    model.Add(rooms_distance >= distance).OnlyEnforceIf(satisfied.Not())
+
+    return satisfied
+
 # Takes in the flattened version of the apartments, universal.
 # Consider corridors. For now it takes in all corridors.
 
@@ -647,7 +698,7 @@ ducts = []
 model = cp_model.CpModel()
 for apartment_no in range(n_apartments):
     n_corridors = randint(1, 3)
-    n_rooms = 6 + n_corridors
+    n_rooms = 5 + n_corridors
     apartment_corridors.append(n_corridors)
     min_area = [randint(1, 5) for i in range(n_rooms)]
     print(min_area)
@@ -662,17 +713,17 @@ for apartment_no in range(n_apartments):
         adjacent_to = -1
         if i == 0:
             room_type = Room.MAIN_BATHROOM
-        if i == 1:
+        elif i == 1:
             room_type = Room.LIVING_ROOM
         elif i == 2:
-            room_type = Room.KITCHEN
+            room_type = Room.BEDROOM
         elif i == 3:
             room_type = Room.DININGROOM
         elif i == 4:
             room_type = Room.MINOR_BATHROOM
             adjacent_to = 0
         elif i == 5:
-            room_type = Room.BEDROOM
+            room_type = Room.KITCHEN
         elif i == 6:
             room_type = Room.DRESSING_ROOM
             adjacent_to = 3
@@ -711,15 +762,19 @@ add_elevator_distance_constraint(elevator, apartments)
 add_duct_constraints(ducts, flattened_floor)
 
 distances_to_main_bathroom = []
+max_bedroom_distances = []
 
 for apartment_no, apartment in enumerate(apartments):
     add_corridor_constraint(apartment_corridors[apartment_no], apartment)
     distances_to_main_bathroom.append(
         max_distance_to_bathroom(apartment))
+    max_bedroom_distances.append(add_bedrooms_constraint(apartment))
 
 # The * 3 here is for the summation of the coefficients (* 2, * 1).
-max_distance_to_bathroom = model.NewIntVar(0, MAX_DIM * 2*3, '')
+max_distance_to_bathroom = model.NewIntVar(0, MAX_DIM * 2 * 3, '')
+max_bedrooms_distance = model.NewIntVar(0, 2 * MAX_DIM, '')
 model.AddMaxEquality(max_distance_to_bathroom, distances_to_main_bathroom)
+model.AddMaxEquality(max_bedrooms_distance, max_bedroom_distances)
 # dist = []
 # for i in range(len(flattened_floor)):
 #     curr = []
@@ -731,10 +786,15 @@ grid = get_grid(flattened_floor)
 sun_reachability = get_sun_reachability(grid)
 add_sunroom_constraint(sun_reachability, grid, flattened_floor)
 
+distance = model.NewBoolVar('')
+distance = enforce_distance_constraint(
+    apartments[0][2], apartments[0][3], 3, Equality.GREATER_THAN)
 # model.Maximize(add_soft_sun_reachability_constraint(
 #     sun_reachability, grid, flattened_floor) * 1)
 # model.Maximize(-1*max_distance_to_bathroom +
 #                add_soft_sun_reachability_constraint(sun_reachability, grid, flattened_floor) * 1)
+# model.Maximize(-1 * max_bedrooms_distance)
+model.Maximize(distance)
 solver = cp_model.CpSolver()
 status = solver.Solve(model)
 print(solver.StatusName())
