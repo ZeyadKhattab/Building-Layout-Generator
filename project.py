@@ -396,7 +396,6 @@ def get_bedrooms(apartment):
 
 def add_bedrooms_constraint(apartment):
     bedrooms = get_bedrooms(apartment)
-    assert(len(bedrooms) > 0)
 
     bedroom_distances = [0]
 
@@ -417,10 +416,17 @@ def enforce_distance_constraint(first_room, second_room, distance, equality):
     rooms_distance = model.NewIntVar(0, 2 * MAX_DIM, '')
     rooms_distance = first_room.distance(second_room)
 
-    if equality == Equality.GREATER_THAN:
-        return rooms_distance - distance
+    satisfied = model.NewBoolVar('')
 
-    return distance - rooms_distance
+    if equality == Equality.GREATER_THAN:
+        model.Add(rooms_distance > distance).OnlyEnforceIf(satisfied)
+        model.Add(rooms_distance <= distance).OnlyEnforceIf(satisfied.Not())
+        return satisfied
+
+    model.Add(rooms_distance < distance).OnlyEnforceIf(satisfied)
+    model.Add(rooms_distance >= distance).OnlyEnforceIf(satisfied.Not())
+
+    return satisfied
 
 # Takes in the flattened version of the apartments, universal.
 # Consider corridors. For now it takes in all corridors.
@@ -780,9 +786,9 @@ grid = get_grid(flattened_floor)
 sun_reachability = get_sun_reachability(grid)
 add_sunroom_constraint(sun_reachability, grid, flattened_floor)
 
-distance = model.NewIntVar(0, 2 * MAX_DIM, '')
+distance = model.NewBoolVar('')
 distance = enforce_distance_constraint(
-    apartments[0][2], apartments[0][3], 3, Equality.LESS_THAN)
+    apartments[0][2], apartments[0][3], 3, Equality.GREATER_THAN)
 # model.Maximize(add_soft_sun_reachability_constraint(
 #     sun_reachability, grid, flattened_floor) * 1)
 # model.Maximize(-1*max_distance_to_bathroom +
