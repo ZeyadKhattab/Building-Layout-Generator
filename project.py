@@ -684,6 +684,18 @@ def visualize_floor(flattened_floor, grid):
     fig.tight_layout()
     plt.show()
 
+
+def add_floor_utilization(grid):
+    unitilized_cells = []
+    for i in range(len(grid)):
+        for j in range(len(grid[0])):
+            b = model.NewBoolVar('')
+            model.Add(grid[i][j] == -1).OnlyEnforceIf(b)
+            model.Add(grid[i][j] != -1).OnlyEnforceIf(b.Not())
+            unitilized_cells.append(b)
+
+    model.Add(sum(unitilized_cells) == 0)
+
 ########################   Main Method Starts Here   ########################
 
 ########################   Process Future Input Here ########################
@@ -783,6 +795,7 @@ model.AddMaxEquality(max_bedrooms_distance, max_bedroom_distances)
 #     dist.append(curr)
 # # dist = apartments[0][0].distance(apartments[0][0])
 grid = get_grid(flattened_floor)
+add_floor_utilization(grid)
 sun_reachability = get_sun_reachability(grid)
 add_sunroom_constraint(sun_reachability, grid, flattened_floor)
 
