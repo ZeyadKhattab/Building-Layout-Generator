@@ -8,7 +8,7 @@ n_type_of_apartments
     min_area, width, height (1,0,0)
     -----
     daylight 0
-    distance idx1 equality(<,>) idx2 value  ('<'/'>')
+    distance idx1 idx2 equality(<,>)  value 
     bedrooms 0
     mainbathroom 0
 optional_global

@@ -59,7 +59,7 @@ ROOM_TYPE_MAP = {'Room.DININGROOM': 'DR', 'Room.KITCHEN': 'KT', 'Room.MAIN_BATHR
 class Rectangle:
     room_id = 1
 
-    def __init__(self, room_type, min_area=1, width=0, height=0, adjacent_to=-1, apartment=0):
+    def __init__(self, room_type, min_area=1, width=0, height=0, adjacent_to=-1, apartment=-1):
         # Name the variable names in the model properly.
         self.width = model.NewIntVar(
             1, FLOOR_WIDTH, 'Width, room: %d' % Rectangle.room_id)
@@ -586,13 +586,13 @@ def add_reachability(reachability, grid, flattened_floor, room_idx, add=1):
     return is_room_reachable
 
 
-def add_soft_sun_reachability_constraint(sun_reachability, grid, flattened_floor):
+def add_soft_sun_reachability_constraint(sun_reachability, grid, apartment):
     is_room_sun_reachable = []
 
-    for room_idx, room in enumerate(flattened_floor):
+    for room_idx, room in enumerate(apartment):
         if room.room_type != Room.DUCT and room.room_type != Room.STAIR and room.room_type != Room.ELEVATOR and room.room_type != Room.SUNROOM:
             is_room_sun_reachable.append(add_reachability(sun_reachability, grid,
-                                                          flattened_floor, room_idx, 0))
+                                                          apartment, room_idx, 0))
 
     return sum(is_room_sun_reachable)
 
@@ -846,15 +846,17 @@ FLOOR_TOP_SIDE = floor_side_dict[line[0]]
 FLOOR_RIGHT_SIDE = floor_side_dict[line[1]]
 FLOOR_BOTTOM_SIDE = floor_side_dict[line[2]]
 FLOOR_LEFT_SIDE = floor_side_dict[line[3]]
-n_apartments = next_int()
+n_apartments_types = next_int()
 apartments = []
 apartment_corridors = []
 ducts = []
 model = cp_model.CpModel()
 apartment_no = 0
 apartment = []
-for apartment_type in range(n_apartments):
-    cnt_per_apartment = next_int()
+cnt_per_apartment_type = []
+soft_constraints = []
+for apartment_type in range(n_apartments_types):
+    cnt_per_apartment_type.append(next_int())
     n_rooms = next_int()
     n_corridors = next_int()
     rooms_parameters = []
@@ -872,8 +874,23 @@ for apartment_type in range(n_apartments):
         rooms_parameters.append(
             [room_type, min_area, width, height, adjacent_to])
 
-    for apartment_copy in range(cnt_per_apartment):
-        print('idx', apartment_copy)
+    for soft_constraint_idx in range(4):
+        if soft_constraint_idx == 1:
+            line = input_file.readline().rstrip('\n').split(' ')
+            assert(len(line) % 4 == 0)
+            distance_soft_constraint = []
+            for i in range(0, len(line), 4):
+                idx1 = int(line[0])
+                idx2 = int(line[1])
+                equality = Equality.GREATER_THAN if line[2] == '>' else Equality.LESS_THAN
+                distance = int(line[3])
+                distance_soft_constraint.append(
+                    [idx1, idx2, equality, distance])
+            soft_constraints.append(distance_soft_constraint)
+        else:
+            soft_constraints.append([next_int()])
+
+    for apartment_copy in range(cnt_per_apartment_type[apartment_type]):
         clone_apartment = []
         for room_parameters in rooms_parameters:
             clone_apartment.append(Rectangle(room_parameters[0], room_parameters[1],
@@ -882,7 +899,6 @@ for apartment_type in range(n_apartments):
             clone_apartment.append(
                 Rectangle(Room.CORRIDOR, apartment=apartment_no))
         apartments.append(clone_apartment)
-
         apartment_no = apartment_no + 1
         apartment_corridors.append(n_corridors)
 
@@ -891,66 +907,60 @@ n_ducts = max(n_apartments - 1, 1)
 for duct_no in range(n_ducts):
     ducts.append(Rectangle(Room.DUCT))
 
-stair = Rectangle(Room.STAIR, width=1, height=1)
-elevator = Rectangle(Room.ELEVATOR, width=1, height=1)
 
 n_floor_corridors = 2
 floor_corridors = []
 for i in range(n_floor_corridors):
     floor_corridors.append(Rectangle(Room.CORRIDOR))
 
-# ########################   Process Future Input Here ########################
-for apartment in apartments:
-    for room in apartment:
-        room.add_room_constraints(apartment)
-
+stair = Rectangle(Room.STAIR, width=1, height=1)
+elevator = Rectangle(Room.ELEVATOR, width=1, height=1)
+# ########################   Hard Constraints ########################
 flattened_floor = flatten_floor(
     apartments, ducts, floor_corridors, stair, elevator)
 
+for apartment in apartments:
+    for room in apartment:
+        room.add_room_constraints(apartment)
 add_no_intersection_constraint(flattened_floor)
-add_floor_corridor_constraints(apartments, floor_corridors)
-add_stair_elevator_constraints(stair, elevator, floor_corridors)
-add_elevator_distance_constraint(elevator, apartments)
-
-add_duct_constraints(ducts, flattened_floor)
-
-distances_to_main_bathroom = []
-max_bedroom_distances = []
-
 for apartment_no, apartment in enumerate(apartments):
     add_corridor_constraint(apartment_corridors[apartment_no], apartment)
-    distances_to_main_bathroom.append(
-        max_distance_to_bathroom(apartment))
-    max_bedroom_distances.append(add_bedrooms_constraint(apartment))
-
-# The * 3 here is for the summation of the coefficients (* 2, * 1).
-# max_distance_to_bathroom = model.NewIntVar(
-#     0, (FLOOR_LENGTH+FLOOR_WIDTH) * 3, '')
-# max_bedrooms_distance = model.NewIntVar(0, (FLOOR_LENGTH+FLOOR_WIDTH), '')
-# model.AddMaxEquality(max_distance_to_bathroom, distances_to_main_bathroom)
-# model.AddMaxEquality(max_bedrooms_distance, max_bedroom_distances)
-# dist = []
-# for i in range(len(flattened_floor)):
-#     curr = []
-#     for j in range(len(flattened_floor)):
-#         curr.append(flattened_floor[i].distance(flattened_floor[j]))
-#     dist.append(curr)
-# # dist = apartments[0][0].distance(apartments[0][0])
+add_floor_corridor_constraints(apartments, floor_corridors)
+add_stair_elevator_constraints(stair, elevator, floor_corridors)
 grid = get_grid(flattened_floor)
 add_floor_utilization(grid)
+add_duct_constraints(ducts, flattened_floor)
 sun_reachability = get_reachability(grid)
 add_sunroom_constraint(sun_reachability, grid, flattened_floor)
-add_landsacpe_reachability(grid, flattened_floor)
-add_symmetry(apartments[0], apartments[1])
-# distance = model.NewBoolVar('')
-# distance = enforce_distance_constraint(
-#     apartments[0][2], apartments[0][3], 3, Equality.GREATER_THAN)
-# model.Maximize(add_soft_sun_reachability_constraint(
-#     sun_reachability, grid, flattened_floor) * 1)
-# model.Maximize(-1*max_distance_to_bathroom +
-#                add_soft_sun_reachability_constraint(sun_reachability, grid, flattened_floor) * 1)
-# model.Maximize(-1 * max_bedrooms_distance)
-# model.Maximize(distance)
+# ########################   Hard Constraints ########################
+
+# ########################   Soft Constraints ########################
+apartment_idx = 0
+distances_to_main_bathroom = []
+max_bedroom_distances = []
+sunreachability_constraint = []
+for apartment_type in range(n_apartments_types):
+    for i in range(cnt_per_apartment_type[apartment_type]):
+        apartment = apartments[apartment_idx + i]
+        if soft_constraints[apartment_type * 4][0] == 1:
+            sunreachability_constraint.append(add_soft_sun_reachability_constraint(
+                sun_reachability, grid, apartment))
+        for distance_constraint in soft_constraints[apartment_type * 4 + 1]:
+            idx1 = distance_constraint[0]
+            idx2 = distance_constraint[1]
+            equality = distance_constraint[2]
+            distance = distance_constraint[3]
+            enforce_distance_constraint(
+                apartment[idx1], apartment[idx2], distance, equality)
+        if soft_constraints[apartment_type * 4 + 2][0] == 1:
+            max_bedroom_distances.append(add_bedrooms_constraint(apartment))
+        if soft_constraints[apartment_type * 4 + 3][0] == 1:
+            distances_to_main_bathroom.append(
+                max_distance_to_bathroom(apartment))
+    apartment_idx += cnt_per_apartment_type[apartment_type]
+
+# ########################   Soft Constraints ########################
+
 solver = cp_model.CpSolver()
 status = solver.Solve(model)
 print(solver.StatusName())
@@ -965,9 +975,4 @@ for idx in range(len(distances_to_main_bathroom)):
 
 check_grid(flattened_floor, grid)
 
-# for i in range(len(flattened_floor)):
-#     for j in range(len(flattened_floor)):
-#         print(i, j, flattened_floor[i].room_type, flattened_floor[i].apartment,
-#               flattened_floor[j].room_type, flattened_floor[j].apartment, solver.Value(dist[i][j]))
-# # print(solver.Value(dist))
 visualize_floor(flattened_floor, grid)
