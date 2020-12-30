@@ -43,7 +43,9 @@ class FloorSide(Enum):
 ########################   Global Variables   ########################
 
 
-MAX_DIM = 10
+FLOOR_LENGTH = 5
+FLOOR_WIDTH = 10
+MAX_DIM = max(FLOOR_LENGTH, FLOOR_WIDTH)
 
 DI = [-1, 1, 0, 0]
 DJ = [0, 0, -1, 1]
@@ -69,19 +71,19 @@ class Rectangle:
     def __init__(self, room_type, min_area=1, width=0, height=0, adjacent_to=-1, apartment=0):
         # Name the variable names in the model properly.
         self.width = model.NewIntVar(
-            1, MAX_DIM, 'Width, room: %d' % Rectangle.room_id)
+            1, FLOOR_WIDTH, 'Width, room: %d' % Rectangle.room_id)
         self.height = model.NewIntVar(
-            1, MAX_DIM, 'Height, room: %d' % Rectangle.room_id)
+            1, FLOOR_LENGTH, 'Height, room: %d' % Rectangle.room_id)
         self.area = model.NewIntVar(
-            min_area, MAX_DIM * MAX_DIM, 'Area, room: %d' % Rectangle.room_id)
+            min_area, FLOOR_LENGTH * FLOOR_WIDTH, 'Area, room: %d' % Rectangle.room_id)
         self.start_row = model.NewIntVar(
-            0, MAX_DIM, 'Starting row, room: %d' % Rectangle.room_id)
+            0, FLOOR_LENGTH, 'Starting row, room: %d' % Rectangle.room_id)
         self.start_col = model.NewIntVar(
-            0, MAX_DIM, 'Starting col, room: %d' % Rectangle.room_id)
+            0, FLOOR_WIDTH, 'Starting col, room: %d' % Rectangle.room_id)
         self.end_row = model.NewIntVar(
-            0, MAX_DIM, 'Ending row, room: %d' % Rectangle.room_id)
+            0, FLOOR_LENGTH, 'Ending row, room: %d' % Rectangle.room_id)
         self.end_col = model.NewIntVar(
-            0, MAX_DIM, 'Ending col, room: %d' % Rectangle.room_id)
+            0, FLOOR_WIDTH, 'Ending col, room: %d' % Rectangle.room_id)
         self.room_type = room_type
         self.apartment = apartment
 
@@ -157,7 +159,7 @@ class Rectangle:
         model.Add(other.end_row < self.start_row).OnlyEnforceIf(top)
         model.Add(other.end_row >= self.start_row).OnlyEnforceIf(top.Not())
 
-        dist = model.NewIntVar(0, MAX_DIM*MAX_DIM, '')
+        dist = model.NewIntVar(0, FLOOR_LENGTH + FLOOR_WIDTH, '')
 
         model.Add(dist == (self.start_col - other.end_col) +
                   (self.start_row - other.end_row)).OnlyEnforceIf([top, left])
@@ -363,7 +365,7 @@ def max_distance_to_bathroom(apartment):
     assert(main_bathroom)
     living_room_distance = None
     others_distance = []
-    max_others_distance = model.NewIntVar(0, 2*MAX_DIM, '')
+    max_others_distance = model.NewIntVar(0, FLOOR_WIDTH + FLOOR_LENGTH, '')
 
     for room in apartment:
         if room.room_type == Room.LIVING_ROOM:
@@ -373,10 +375,11 @@ def max_distance_to_bathroom(apartment):
 
     model.AddMaxEquality(max_others_distance, others_distance)
     if living_room_distance:
-        living_room_distance_x2 = model.NewIntVar(0, 2*2*MAX_DIM, '')
+        living_room_distance_x2 = model.NewIntVar(
+            0, 2*(FLOOR_LENGTH + FLOOR_WIDTH), '')
         model.AddMultiplicationEquality(living_room_distance_x2, [
                                         2, living_room_distance])
-        summation = model.NewIntVar(0, 3*MAX_DIM, '')
+        summation = model.NewIntVar(0, 3*(FLOOR_LENGTH + FLOOR_WIDTH), '')
         model.Add(summation == living_room_distance_x2+max_others_distance)
         return summation
     else:
@@ -403,17 +406,17 @@ def add_bedrooms_constraint(apartment):
         for j in range(i):
             bedroom_distances.append(bedrooms[i].distance(bedrooms[j]))
 
-    max_bedrooms_distance = model.NewIntVar(0, 2 * MAX_DIM, '')
+    max_bedrooms_distance = model.NewIntVar(0, FLOOR_LENGTH + FLOOR_WIDTH, '')
     model.AddMaxEquality(max_bedrooms_distance, bedroom_distances)
 
     return max_bedrooms_distance
 
 
 def enforce_distance_constraint(first_room, second_room, distance, equality):
-    assert(distance < 2 * MAX_DIM)
+    assert(distance <= FLOOR_LENGTH + FLOOR_WIDTH)
     assert(equality == Equality.GREATER_THAN or equality == Equality.LESS_THAN)
 
-    rooms_distance = model.NewIntVar(0, 2 * MAX_DIM, '')
+    rooms_distance = model.NewIntVar(0, FLOOR_LENGTH + FLOOR_WIDTH, '')
     rooms_distance = first_room.distance(second_room)
 
     satisfied = model.NewBoolVar('')
@@ -434,10 +437,10 @@ def enforce_distance_constraint(first_room, second_room, distance, equality):
 
 def get_grid(flattened_floor):
     n = len(flattened_floor)
-    grid = [[model.NewIntVar(-1, n-1, '') for j in range(MAX_DIM)]
-            for i in range(MAX_DIM)]
-    for i in range(MAX_DIM):
-        for j in range(MAX_DIM):
+    grid = [[model.NewIntVar(-1, n-1, '') for j in range(FLOOR_WIDTH)]
+            for i in range(FLOOR_LENGTH)]
+    for i in range(FLOOR_LENGTH):
+        for j in range(FLOOR_WIDTH):
             intersections = []
             for index, room in enumerate(flattened_floor):
 
@@ -495,41 +498,41 @@ def get_grid(flattened_floor):
 def get_reachability(grid, floor_sides=[FloorSide.LANDSCAPE, FloorSide.OPEN]):
     """A cell is reachable if it's reachable from any of the four directions. """
     reachable_from = [[[model.NewBoolVar('%i %i %i' % (i, j, k)) for k in range(
-        len(DI))] for j in range(MAX_DIM)] for i in range(MAX_DIM)]
-    reachable = [[model.NewBoolVar('') for j in range(MAX_DIM)]
-                 for i in range(MAX_DIM)]
+        len(DI))] for j in range(FLOOR_WIDTH)] for i in range(FLOOR_LENGTH)]
+    reachable = [[model.NewBoolVar('') for j in range(FLOOR_WIDTH)]
+                 for i in range(FLOOR_LENGTH)]
     top = 0
     bottom = 1
     left = 2
     right = 3
     is_reachable = 1 if FLOOR_TOP_SIDE in floor_sides else 0
 
-    for j in range(MAX_DIM):
+    for j in range(FLOOR_WIDTH):
         model.Add(reachable_from[0][j][top] == is_reachable)
 
     is_reachable = 1 if FLOOR_BOTTOM_SIDE in floor_sides else 0
-    for j in range(MAX_DIM):
-        model.Add(reachable_from[MAX_DIM - 1][j][bottom] == is_reachable)
+    for j in range(FLOOR_WIDTH):
+        model.Add(reachable_from[FLOOR_LENGTH - 1][j][bottom] == is_reachable)
 
     is_reachable = 1 if FLOOR_LEFT_SIDE in floor_sides else 0
-    for i in range(MAX_DIM):
+    for i in range(FLOOR_LENGTH):
         model.Add(reachable_from[i][0][left] == is_reachable)
 
     is_reachable = 1 if FLOOR_RIGHT_SIDE in floor_sides else 0
-    for i in range(MAX_DIM):
-        model.Add(reachable_from[i][MAX_DIM-1][right] == is_reachable)
+    for i in range(FLOOR_LENGTH):
+        model.Add(reachable_from[i][FLOOR_WIDTH-1][right] == is_reachable)
 
-    for i in range(MAX_DIM):
-        for j in range(MAX_DIM):
+    for i in range(FLOOR_LENGTH):
+        for j in range(FLOOR_WIDTH):
             current_cell = []
             # if (neighbor == 1 and (equal to neighbor or neighbor is empty))
             for k in range(len(DI)):
                 i2 = i+DI[k]
                 j2 = j+DJ[k]
-                if(i2 < 0 or i2 >= MAX_DIM):
+                if(i2 < 0 or i2 >= FLOOR_LENGTH):
                     current_cell.append(reachable_from[i][j][k])
                     continue
-                if(j2 < 0 or j2 >= MAX_DIM):
+                if(j2 < 0 or j2 >= FLOOR_WIDTH):
                     current_cell.append(reachable_from[i][j][k])
                     continue
                 equal = model.NewBoolVar('')
@@ -564,8 +567,8 @@ def add_reachability(reachability, grid, flattened_floor, room_idx, add=1):
     """For each room, one of its cells must be reachable."""
 
     is_cells_reachable = []
-    for i in range(MAX_DIM):
-        for j in range(MAX_DIM):
+    for i in range(FLOOR_LENGTH):
+        for j in range(FLOOR_WIDTH):
             # if grid[i][j]==index and sun_reachability[i][j]==1 then true
             is_cell_reachable = model.NewBoolVar('')
             in_room = model.NewBoolVar('')
@@ -634,7 +637,8 @@ def flatten_floor(apartments, ducts, floor_corridors, stair, elevator):
 
 def check_grid(flattened_floor, grid):
     """Checks that the creeated Int var grid is equal to the visualized grid."""
-    visited = [[False for j in range(MAX_DIM)] for i in range(MAX_DIM)]
+    visited = [[False for j in range(FLOOR_WIDTH)]
+               for i in range(FLOOR_LENGTH)]
     for index, room in enumerate(flattened_floor):
         start_row = solver.Value(room.start_row)
         end_row = solver.Value(room.end_row)
@@ -645,22 +649,23 @@ def check_grid(flattened_floor, grid):
                 curr = solver.Value(grid[row][column])
                 assert(curr == index)
                 visited[row][column] = True
-    for i in range(MAX_DIM):
-        for j in range(MAX_DIM):
+    for i in range(FLOOR_LENGTH):
+        for j in range(FLOOR_WIDTH):
             assert(visited[i][j] or solver.Value(grid[i][j]) == -1)
 
 
 def print_sun_reachability(sun_reachibility):
     print('Sun Reachability Matrix')
-    for i in range(MAX_DIM):
-        for j in range(MAX_DIM):
+    for i in range(FLOOR_LENGTH):
+        for j in range(FLOOR_WIDTH):
             print(solver.Value(sun_reachability[i][j]), end=' ')
         print()
 
 
 def visualize_floor(flattened_floor, grid):
     """Visualizes the floor using matplotlib"""
-    visualized_output = [[0 for i in range(MAX_DIM)] for j in range(MAX_DIM)]
+    visualized_output = [[0 for j in range(FLOOR_WIDTH)]
+                         for i in range(FLOOR_LENGTH)]
     fig, ax = plt.subplots()
     for i, row in enumerate(grid):
         for j, x in enumerate(row):
@@ -714,10 +719,10 @@ def get_int_var_per_point(r1, c1, r2, c2, mirror, vertical=True):
         symmetric_cols = model.NewBoolVar('')
         model.Add(r1 == r2).OnlyEnforceIf(equal_rows)
         model.Add(r1 != r2).OnlyEnforceIf(equal_rows.Not())
-        c1_diff = model.NewIntVar(-MAX_DIM, MAX_DIM, '')
-        c2_diff = model.NewIntVar(-MAX_DIM, MAX_DIM, '')
-        c1_abs_diff = model.NewIntVar(0, MAX_DIM, '')
-        c2_abs_diff = model.NewIntVar(0, MAX_DIM, '')
+        c1_diff = model.NewIntVar(-FLOOR_WIDTH, FLOOR_WIDTH, '')
+        c2_diff = model.NewIntVar(-FLOOR_WIDTH, FLOOR_WIDTH, '')
+        c1_abs_diff = model.NewIntVar(0, FLOOR_WIDTH, '')
+        c2_abs_diff = model.NewIntVar(0, FLOOR_WIDTH, '')
         model.Add(c1_diff == c1 - mirror)
         model.Add(c2_diff == c2 - mirror)
         model.AddAbsEquality(c1_abs_diff, c1_diff)
@@ -732,10 +737,10 @@ def get_int_var_per_point(r1, c1, r2, c2, mirror, vertical=True):
         symmetric_rows = model.NewBoolVar('')
         model.Add(c1 == c2).OnlyEnforceIf(equal_cols)
         model.Add(c1 != c2).OnlyEnforceIf(equal_cols.Not())
-        r1_diff = model.NewIntVar(-MAX_DIM, MAX_DIM, '')
-        r2_diff = model.NewIntVar(-MAX_DIM, MAX_DIM, '')
-        r1_abs_diff = model.NewIntVar(0, MAX_DIM, '')
-        r2_abs_diff = model.NewIntVar(0, MAX_DIM, '')
+        r1_diff = model.NewIntVar(-FLOOR_LENGTH, FLOOR_LENGTH, '')
+        r2_diff = model.NewIntVar(-FLOOR_LENGTH, FLOOR_LENGTH, '')
+        r1_abs_diff = model.NewIntVar(0, FLOOR_LENGTH, '')
+        r2_abs_diff = model.NewIntVar(0, FLOOR_LENGTH, '')
         model.Add(r1_diff == r1 - mirror)
         model.Add(r2_diff == r2 - mirror)
         model.AddAbsEquality(r1_abs_diff, r1_diff)
@@ -763,7 +768,7 @@ def get_symmetry_corners(room_1, room_2, mirror, vertical=True):
 
 def add_symmetry(apartment_1, apartment_2):
     vertical_symmetry_flags = []
-    vertical_mirror = model.NewIntVar(0, MAX_DIM, '')  # x= mirror
+    vertical_mirror = model.NewIntVar(0, FLOOR_WIDTH, '')  # x= mirror
     for i in range(len(apartment_1)):
         room_1 = apartment_1[i]
         room_2 = apartment_2[i]
@@ -786,7 +791,7 @@ def add_symmetry(apartment_1, apartment_2):
         vertical_symmetry_flags.append(right_of_mirror)
     ########## horizontal mirror ###########
     horizontal_symmetry_flags = []
-    horizontal_mirror = model.NewIntVar(0, MAX_DIM, '')  # x= mirror
+    horizontal_mirror = model.NewIntVar(0, FLOOR_LENGTH, '')  # y= mirror
     for i in range(len(apartment_1)):
         room_1 = apartment_1[i]
         room_2 = apartment_2[i]
@@ -822,7 +827,12 @@ def add_symmetry(apartment_1, apartment_2):
 ########################   Process Future Input Here ########################
 
 
-n_apartments = 2
+# f=open("sample_inputtxt", "r")
+# FLOOR_WIDTH
+# for line in f:
+#     print(line)
+
+n_apartments = 1
 
 apartments = []
 apartment_corridors = []
@@ -831,7 +841,7 @@ model = cp_model.CpModel()
 apartment_no = 0
 for apartment_type in range(n_apartments):
     n_corridors = 1
-    n_rooms = 4 + n_corridors
+    n_rooms = 3 + n_corridors
     min_area = [randint(1, 5) for i in range(n_rooms)]
     print(min_area)
     cnt_per_apartment = 2 if apartment_no == 0 else 1
@@ -909,8 +919,9 @@ for apartment_no, apartment in enumerate(apartments):
     max_bedroom_distances.append(add_bedrooms_constraint(apartment))
 
 # The * 3 here is for the summation of the coefficients (* 2, * 1).
-max_distance_to_bathroom = model.NewIntVar(0, MAX_DIM * 2 * 3, '')
-max_bedrooms_distance = model.NewIntVar(0, 2 * MAX_DIM, '')
+max_distance_to_bathroom = model.NewIntVar(
+    0, (FLOOR_LENGTH+FLOOR_WIDTH) * 3, '')
+max_bedrooms_distance = model.NewIntVar(0, (FLOOR_LENGTH+FLOOR_WIDTH), '')
 model.AddMaxEquality(max_distance_to_bathroom, distances_to_main_bathroom)
 model.AddMaxEquality(max_bedrooms_distance, max_bedroom_distances)
 # dist = []
