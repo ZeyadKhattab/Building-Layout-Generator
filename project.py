@@ -726,14 +726,38 @@ def get_int_var_per_point(r1, c1, r2, c2, mirror, vertical=True):
         model.Add(c1_abs_diff != c2_abs_diff).OnlyEnforceIf(
             symmetric_cols.Not())
         return equal_rows, symmetric_cols
+    else:
+        # c1 = c2, |r2-mirror|=|r1-mirror|
+        equal_cols = model.NewBoolVar('')
+        symmetric_rows = model.NewBoolVar('')
+        model.Add(c1 == c2).OnlyEnforceIf(equal_cols)
+        model.Add(c1 != c2).OnlyEnforceIf(equal_cols.Not())
+        r1_diff = model.NewIntVar(-MAX_DIM, MAX_DIM, '')
+        r2_diff = model.NewIntVar(-MAX_DIM, MAX_DIM, '')
+        r1_abs_diff = model.NewIntVar(0, MAX_DIM, '')
+        r2_abs_diff = model.NewIntVar(0, MAX_DIM, '')
+        model.Add(r1_diff == r1 - mirror)
+        model.Add(r2_diff == r2 - mirror)
+        model.AddAbsEquality(r1_abs_diff, r1_diff)
+        model.AddAbsEquality(r2_abs_diff, r2_diff)
+        model.Add(r1_abs_diff == r2_abs_diff).OnlyEnforceIf(symmetric_rows)
+        model.Add(r1_abs_diff != r2_abs_diff).OnlyEnforceIf(
+            symmetric_rows.Not())
+        return equal_cols, symmetric_rows
 
 
 def get_symmetry_corners(room_1, room_2, mirror, vertical=True):
     if vertical:
         b1, b2 = get_int_var_per_point(
-            room_1.start_row, room_1.start_col, room_2.start_row, room_2.end_col, mirror)
+            room_1.start_row, room_1.start_col, room_2.start_row, room_2.end_col, mirror, vertical)
         b3, b4 = get_int_var_per_point(
-            room_1.end_row, room_1.end_col, room_2.end_row, room_2.start_col, mirror)
+            room_1.end_row, room_1.end_col, room_2.end_row, room_2.start_col, mirror, vertical)
+        return b1, b2, b3, b4
+    else:
+        b1, b2 = get_int_var_per_point(
+            room_1.start_row, room_1.start_col, room_2.end_row, room_2.start_col, mirror, vertical)
+        b3, b4 = get_int_var_per_point(
+            room_1.end_row, room_1.end_col, room_2.start_row, room_2.end_col, mirror, vertical)
         return b1, b2, b3, b4
 
 
@@ -760,7 +784,39 @@ def add_symmetry(apartment_1, apartment_2):
         model.Add(room_2.start_col < vertical_mirror).OnlyEnforceIf(
             right_of_mirror.Not())
         vertical_symmetry_flags.append(right_of_mirror)
-    model.AddBoolAnd(vertical_symmetry_flags)
+    ########## horizontal mirror ###########
+    horizontal_symmetry_flags = []
+    horizontal_mirror = model.NewIntVar(0, MAX_DIM, '')  # x= mirror
+    for i in range(len(apartment_1)):
+        room_1 = apartment_1[i]
+        room_2 = apartment_2[i]
+        b1, b2, b3, b4 = get_symmetry_corners(
+            room_1, room_2, horizontal_mirror, vertical=False)
+        horizontal_symmetry_flags.append(b1)
+        horizontal_symmetry_flags.append(b2)
+        horizontal_symmetry_flags.append(b3)
+        horizontal_symmetry_flags.append(b4)
+        top_of_mirror = model.NewBoolVar('')
+        model.Add(room_1.end_row <= horizontal_mirror).OnlyEnforceIf(
+            top_of_mirror)
+        model.Add(room_1.end_row > horizontal_mirror).OnlyEnforceIf(
+            top_of_mirror.Not())
+        horizontal_symmetry_flags.append(top_of_mirror)
+        bottom_of_mirror = model.NewBoolVar('')
+        model.Add(room_2.start_row >= horizontal_mirror).OnlyEnforceIf(
+            bottom_of_mirror)
+        model.Add(room_2.start_row < horizontal_mirror).OnlyEnforceIf(
+            bottom_of_mirror.Not())
+        horizontal_symmetry_flags.append(bottom_of_mirror)
+    horizontal_symmetry = model.NewBoolVar('')
+    vertical_symmetry = model.NewBoolVar('')
+
+    model.AddBoolAnd(vertical_symmetry_flags).OnlyEnforceIf(
+        vertical_symmetry)
+    model.AddBoolAnd(horizontal_symmetry_flags).OnlyEnforceIf(
+        horizontal_symmetry)
+    model.Add(horizontal_symmetry + vertical_symmetry == 1)
+
 ########################   Main Method Starts Here   ########################
 
 ########################   Process Future Input Here ########################
