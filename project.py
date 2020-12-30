@@ -53,10 +53,10 @@ ROOM_TYPE_MAP = {'Room.DININGROOM': 'DR', 'Room.KITCHEN': 'KT', 'Room.MAIN_BATHR
                  'Room.DUCT': 'D', 'Room.STAIR': 'S', 'Room.ELEVATOR': 'E', 'Room.LIVING_ROOM': 'LR', 'Room.OTHER': 'X'}
 
 
-FLOOR_RIGHT_SIDE = FloorSide.OPEN
+FLOOR_RIGHT_SIDE = FloorSide.LANDSCAPE
 FLOOR_LEFT_SIDE = FloorSide.LANDSCAPE
 FLOOR_TOP_SIDE = FloorSide.LANDSCAPE
-FLOOR_BOTTOM_SIDE = FloorSide.NONE
+FLOOR_BOTTOM_SIDE = FloorSide.LANDSCAPE
 
 ########################   Global Variables   ########################
 
@@ -492,8 +492,8 @@ def get_grid(flattened_floor):
 # Consider corridors as well.
 
 
-def get_sun_reachability(grid):
-    """A cell is reachable if it's reachable from any of the four directions."""
+def get_reachability(grid, floor_sides=[FloorSide.LANDSCAPE, FloorSide.OPEN]):
+    """A cell is reachable if it's reachable from any of the four directions. """
     reachable_from = [[[model.NewBoolVar('%i %i %i' % (i, j, k)) for k in range(
         len(DI))] for j in range(MAX_DIM)] for i in range(MAX_DIM)]
     reachable = [[model.NewBoolVar('') for j in range(MAX_DIM)]
@@ -502,22 +502,22 @@ def get_sun_reachability(grid):
     bottom = 1
     left = 2
     right = 3
-    is_open = 1 if FLOOR_TOP_SIDE == FloorSide.OPEN else 0
+    is_reachable = 1 if FLOOR_TOP_SIDE in floor_sides else 0
 
     for j in range(MAX_DIM):
-        model.Add(reachable_from[0][j][top] == is_open)
+        model.Add(reachable_from[0][j][top] == is_reachable)
 
-    is_open = 1 if FLOOR_BOTTOM_SIDE == FloorSide.OPEN else 0
+    is_reachable = 1 if FLOOR_BOTTOM_SIDE in floor_sides else 0
     for j in range(MAX_DIM):
-        model.Add(reachable_from[MAX_DIM - 1][j][bottom] == is_open)
+        model.Add(reachable_from[MAX_DIM - 1][j][bottom] == is_reachable)
 
-    is_open = 1 if FLOOR_LEFT_SIDE == FloorSide.OPEN else 0
+    is_reachable = 1 if FLOOR_LEFT_SIDE in floor_sides else 0
     for i in range(MAX_DIM):
-        model.Add(reachable_from[i][0][left] == is_open)
+        model.Add(reachable_from[i][0][left] == is_reachable)
 
-    is_open = 1 if FLOOR_RIGHT_SIDE == FloorSide.OPEN else 0
+    is_reachable = 1 if FLOOR_RIGHT_SIDE in floor_sides else 0
     for i in range(MAX_DIM):
-        model.Add(reachable_from[i][MAX_DIM-1][right] == is_open)
+        model.Add(reachable_from[i][MAX_DIM-1][right] == is_reachable)
 
     for i in range(MAX_DIM):
         for j in range(MAX_DIM):
@@ -560,8 +560,8 @@ def get_sun_reachability(grid):
 # Takes in the flattened version of the apartments, universal.
 
 
-def add_sun_reachability(sun_reachability, grid, flattened_floor, room_idx):
-    """For each sunrom, one of its cells must be reachable from the sun."""
+def add_reachability(reachability, grid, flattened_floor, room_idx, add=1):
+    """For each room, one of its cells must be reachable."""
 
     is_cells_reachable = []
     for i in range(MAX_DIM):
@@ -572,11 +572,11 @@ def add_sun_reachability(sun_reachability, grid, flattened_floor, room_idx):
             model.Add(grid[i][j] == room_idx).OnlyEnforceIf(in_room)
             model.Add(grid[i][j] != room_idx).OnlyEnforceIf(in_room.Not())
             model.Add(is_cell_reachable == 1).OnlyEnforceIf(
-                [in_room, sun_reachability[i][j]])
+                [in_room, reachability[i][j]])
             model.AddImplication(
                 in_room.Not(), is_cell_reachable.Not())
             model.AddImplication(
-                sun_reachability[i][j].Not(), is_cell_reachable.Not())
+                reachability[i][j].Not(), is_cell_reachable.Not())
             is_cells_reachable.append(is_cell_reachable)
 
     is_room_reachable = model.NewBoolVar('')
@@ -584,7 +584,7 @@ def add_sun_reachability(sun_reachability, grid, flattened_floor, room_idx):
     model.Add(sum(is_cells_reachable) == 0).OnlyEnforceIf(
         is_room_reachable.Not())
 
-    if flattened_floor[room_idx].room_type == Room.SUNROOM:
+    if add == 1:
         model.Add(is_room_reachable == 1)
 
     return is_room_reachable
@@ -595,8 +595,8 @@ def add_soft_sun_reachability_constraint(sun_reachability, grid, flattened_floor
 
     for room_idx, room in enumerate(flattened_floor):
         if room.room_type != Room.DUCT and room.room_type != Room.STAIR and room.room_type != Room.ELEVATOR and room.room_type != Room.SUNROOM:
-            is_room_sun_reachable.append(add_sun_reachability(sun_reachability, grid,
-                                                              flattened_floor, room_idx))
+            is_room_sun_reachable.append(add_reachability(sun_reachability, grid,
+                                                          flattened_floor, room_idx, 0))
 
     return sum(is_room_sun_reachable)
 
@@ -604,8 +604,8 @@ def add_soft_sun_reachability_constraint(sun_reachability, grid, flattened_floor
 def add_sunroom_constraint(sun_reachability, grid, flattened_floor):
     for room_idx, room in enumerate(flattened_floor):
         if room.room_type == Room.SUNROOM:
-            add_sun_reachability(sun_reachability, grid,
-                                 flattened_floor, room_idx)
+            add_reachability(sun_reachability, grid,
+                             flattened_floor, room_idx)
 
 # If given |apartments| only, it will flatten the apartments.
 # If given |apartments| and |floor_corridors| it will flatten both together.
@@ -696,6 +696,16 @@ def add_floor_utilization(grid):
 
     model.Add(sum(unitilized_cells) == 0)
 
+
+def add_landsacpe_reachability(grid, flattened_floor):
+    un_important_rooms = [Room.CORRIDOR, Room.DUCT, Room.ELEVATOR,
+                          Room.STAIR, Room.MAIN_BATHROOM, Room.MINOR_BATHROOM]
+    landsacpe_reachability = get_reachability(grid, [FloorSide.LANDSCAPE])
+    for room_idx, room in enumerate(flattened_floor):
+        if not room.room_type in un_important_rooms:
+            add_reachability(landsacpe_reachability, grid,
+                             flattened_floor, room_idx)
+
 ########################   Main Method Starts Here   ########################
 
 ########################   Process Future Input Here ########################
@@ -710,7 +720,7 @@ ducts = []
 model = cp_model.CpModel()
 for apartment_no in range(n_apartments):
     n_corridors = randint(1, 3)
-    n_rooms = 5 + n_corridors
+    n_rooms = 4 + n_corridors
     apartment_corridors.append(n_corridors)
     min_area = [randint(1, 5) for i in range(n_rooms)]
     print(min_area)
@@ -726,7 +736,7 @@ for apartment_no in range(n_apartments):
         if i == 0:
             room_type = Room.MAIN_BATHROOM
         elif i == 1:
-            room_type = Room.LIVING_ROOM
+            room_type = Room.SUNROOM
         elif i == 2:
             room_type = Room.BEDROOM
         elif i == 3:
@@ -796,9 +806,9 @@ model.AddMaxEquality(max_bedrooms_distance, max_bedroom_distances)
 # # dist = apartments[0][0].distance(apartments[0][0])
 grid = get_grid(flattened_floor)
 add_floor_utilization(grid)
-sun_reachability = get_sun_reachability(grid)
+sun_reachability = get_reachability(grid)
 add_sunroom_constraint(sun_reachability, grid, flattened_floor)
-
+add_landsacpe_reachability(grid, flattened_floor)
 distance = model.NewBoolVar('')
 distance = enforce_distance_constraint(
     apartments[0][2], apartments[0][3], 3, Equality.GREATER_THAN)
