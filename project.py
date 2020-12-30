@@ -706,6 +706,117 @@ def add_landsacpe_reachability(grid, flattened_floor):
             add_reachability(landsacpe_reachability, grid,
                              flattened_floor, room_idx)
 
+
+def get_int_var_per_point(r1, c1, r2, c2, mirror, vertical=True):
+    if(vertical):
+        # r1 = r2, |c2-mirror|=|c1-mirror|
+        equal_rows = model.NewBoolVar('')
+        symmetric_cols = model.NewBoolVar('')
+        model.Add(r1 == r2).OnlyEnforceIf(equal_rows)
+        model.Add(r1 != r2).OnlyEnforceIf(equal_rows.Not())
+        c1_diff = model.NewIntVar(-MAX_DIM, MAX_DIM, '')
+        c2_diff = model.NewIntVar(-MAX_DIM, MAX_DIM, '')
+        c1_abs_diff = model.NewIntVar(0, MAX_DIM, '')
+        c2_abs_diff = model.NewIntVar(0, MAX_DIM, '')
+        model.Add(c1_diff == c1 - mirror)
+        model.Add(c2_diff == c2 - mirror)
+        model.AddAbsEquality(c1_abs_diff, c1_diff)
+        model.AddAbsEquality(c2_abs_diff, c2_diff)
+        model.Add(c1_abs_diff == c2_abs_diff).OnlyEnforceIf(symmetric_cols)
+        model.Add(c1_abs_diff != c2_abs_diff).OnlyEnforceIf(
+            symmetric_cols.Not())
+        return equal_rows, symmetric_cols
+    else:
+        # c1 = c2, |r2-mirror|=|r1-mirror|
+        equal_cols = model.NewBoolVar('')
+        symmetric_rows = model.NewBoolVar('')
+        model.Add(c1 == c2).OnlyEnforceIf(equal_cols)
+        model.Add(c1 != c2).OnlyEnforceIf(equal_cols.Not())
+        r1_diff = model.NewIntVar(-MAX_DIM, MAX_DIM, '')
+        r2_diff = model.NewIntVar(-MAX_DIM, MAX_DIM, '')
+        r1_abs_diff = model.NewIntVar(0, MAX_DIM, '')
+        r2_abs_diff = model.NewIntVar(0, MAX_DIM, '')
+        model.Add(r1_diff == r1 - mirror)
+        model.Add(r2_diff == r2 - mirror)
+        model.AddAbsEquality(r1_abs_diff, r1_diff)
+        model.AddAbsEquality(r2_abs_diff, r2_diff)
+        model.Add(r1_abs_diff == r2_abs_diff).OnlyEnforceIf(symmetric_rows)
+        model.Add(r1_abs_diff != r2_abs_diff).OnlyEnforceIf(
+            symmetric_rows.Not())
+        return equal_cols, symmetric_rows
+
+
+def get_symmetry_corners(room_1, room_2, mirror, vertical=True):
+    if vertical:
+        b1, b2 = get_int_var_per_point(
+            room_1.start_row, room_1.start_col, room_2.start_row, room_2.end_col, mirror, vertical)
+        b3, b4 = get_int_var_per_point(
+            room_1.end_row, room_1.end_col, room_2.end_row, room_2.start_col, mirror, vertical)
+        return b1, b2, b3, b4
+    else:
+        b1, b2 = get_int_var_per_point(
+            room_1.start_row, room_1.start_col, room_2.end_row, room_2.start_col, mirror, vertical)
+        b3, b4 = get_int_var_per_point(
+            room_1.end_row, room_1.end_col, room_2.start_row, room_2.end_col, mirror, vertical)
+        return b1, b2, b3, b4
+
+
+def add_symmetry(apartment_1, apartment_2):
+    vertical_symmetry_flags = []
+    vertical_mirror = model.NewIntVar(0, MAX_DIM, '')  # x= mirror
+    for i in range(len(apartment_1)):
+        room_1 = apartment_1[i]
+        room_2 = apartment_2[i]
+        b1, b2, b3, b4 = get_symmetry_corners(room_1, room_2, vertical_mirror)
+        vertical_symmetry_flags.append(b1)
+        vertical_symmetry_flags.append(b2)
+        vertical_symmetry_flags.append(b3)
+        vertical_symmetry_flags.append(b4)
+        left_of_mirror = model.NewBoolVar('')
+        model.Add(room_1.end_col <= vertical_mirror).OnlyEnforceIf(
+            left_of_mirror)
+        model.Add(room_1.end_col > vertical_mirror).OnlyEnforceIf(
+            left_of_mirror.Not())
+        vertical_symmetry_flags.append(left_of_mirror)
+        right_of_mirror = model.NewBoolVar('')
+        model.Add(room_2.start_col >= vertical_mirror).OnlyEnforceIf(
+            right_of_mirror)
+        model.Add(room_2.start_col < vertical_mirror).OnlyEnforceIf(
+            right_of_mirror.Not())
+        vertical_symmetry_flags.append(right_of_mirror)
+    ########## horizontal mirror ###########
+    horizontal_symmetry_flags = []
+    horizontal_mirror = model.NewIntVar(0, MAX_DIM, '')  # x= mirror
+    for i in range(len(apartment_1)):
+        room_1 = apartment_1[i]
+        room_2 = apartment_2[i]
+        b1, b2, b3, b4 = get_symmetry_corners(
+            room_1, room_2, horizontal_mirror, vertical=False)
+        horizontal_symmetry_flags.append(b1)
+        horizontal_symmetry_flags.append(b2)
+        horizontal_symmetry_flags.append(b3)
+        horizontal_symmetry_flags.append(b4)
+        top_of_mirror = model.NewBoolVar('')
+        model.Add(room_1.end_row <= horizontal_mirror).OnlyEnforceIf(
+            top_of_mirror)
+        model.Add(room_1.end_row > horizontal_mirror).OnlyEnforceIf(
+            top_of_mirror.Not())
+        horizontal_symmetry_flags.append(top_of_mirror)
+        bottom_of_mirror = model.NewBoolVar('')
+        model.Add(room_2.start_row >= horizontal_mirror).OnlyEnforceIf(
+            bottom_of_mirror)
+        model.Add(room_2.start_row < horizontal_mirror).OnlyEnforceIf(
+            bottom_of_mirror.Not())
+        horizontal_symmetry_flags.append(bottom_of_mirror)
+    horizontal_symmetry = model.NewBoolVar('')
+    vertical_symmetry = model.NewBoolVar('')
+
+    model.AddBoolAnd(vertical_symmetry_flags).OnlyEnforceIf(
+        vertical_symmetry)
+    model.AddBoolAnd(horizontal_symmetry_flags).OnlyEnforceIf(
+        horizontal_symmetry)
+    model.Add(horizontal_symmetry + vertical_symmetry == 1)
+
 ########################   Main Method Starts Here   ########################
 
 ########################   Process Future Input Here ########################
@@ -716,46 +827,51 @@ n_apartments = 2
 apartments = []
 apartment_corridors = []
 ducts = []
-
 model = cp_model.CpModel()
-for apartment_no in range(n_apartments):
-    n_corridors = randint(1, 3)
+apartment_no = 0
+for apartment_type in range(n_apartments):
+    n_corridors = 1
     n_rooms = 4 + n_corridors
-    apartment_corridors.append(n_corridors)
     min_area = [randint(1, 5) for i in range(n_rooms)]
     print(min_area)
-    apartment = []
-    for i in range(n_rooms):
-        if i >= n_rooms - n_corridors:
+    cnt_per_apartment = 2 if apartment_no == 0 else 1
+    for j in range(cnt_per_apartment):
+        apartment_corridors.append(n_corridors)
+        apartment = []
+        for i in range(n_rooms):
+            if i >= n_rooms - n_corridors:
+                apartment.append(
+                    Rectangle(Room.CORRIDOR, apartment=apartment_no + 1))
+                continue
+
+            room_type = Room.OTHER
+            adjacent_to = -1
+            if i == 0:
+                room_type = Room.MAIN_BATHROOM
+            elif i == 1:
+                room_type = Room.SUNROOM
+            elif i == 2:
+                room_type = Room.BEDROOM
+            elif i == 3:
+                room_type = Room.DININGROOM
+            elif i == 4:
+                room_type = Room.MINOR_BATHROOM
+                adjacent_to = 0
+            elif i == 5:
+                room_type = Room.KITCHEN
+            elif i == 6:
+                room_type = Room.DRESSING_ROOM
+                adjacent_to = 3
+            elif i == 7:
+                room_type = Room.SUNROOM
             apartment.append(
-                Rectangle(Room.CORRIDOR, apartment=apartment_no + 1))
-            continue
+                Rectangle(room_type, min_area[i], adjacent_to=adjacent_to, apartment=apartment_no + 1))
 
-        room_type = Room.OTHER
-        adjacent_to = -1
-        if i == 0:
-            room_type = Room.MAIN_BATHROOM
-        elif i == 1:
-            room_type = Room.SUNROOM
-        elif i == 2:
-            room_type = Room.BEDROOM
-        elif i == 3:
-            room_type = Room.DININGROOM
-        elif i == 4:
-            room_type = Room.MINOR_BATHROOM
-            adjacent_to = 0
-        elif i == 5:
-            room_type = Room.KITCHEN
-        elif i == 6:
-            room_type = Room.DRESSING_ROOM
-            adjacent_to = 3
-        elif i == 7:
-            room_type = Room.SUNROOM
-        apartment.append(
-            Rectangle(room_type, min_area[i], adjacent_to=adjacent_to, apartment=apartment_no + 1))
+        apartments.append(apartment)
+        apartment_no = apartment_no + 1
 
-    apartments.append(apartment)
 
+n_apartments = len(apartments)
 n_ducts = n_apartments - 1
 for duct_no in range(n_ducts):
     ducts.append(Rectangle(Room.DUCT))
@@ -809,6 +925,7 @@ add_floor_utilization(grid)
 sun_reachability = get_reachability(grid)
 add_sunroom_constraint(sun_reachability, grid, flattened_floor)
 add_landsacpe_reachability(grid, flattened_floor)
+add_symmetry(apartments[0], apartments[1])
 distance = model.NewBoolVar('')
 distance = enforce_distance_constraint(
     apartments[0][2], apartments[0][3], 3, Equality.GREATER_THAN)
