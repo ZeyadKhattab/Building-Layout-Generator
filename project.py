@@ -518,7 +518,7 @@ def get_reachability(grid, floor_sides=[FloorSide.LANDSCAPE, FloorSide.OPEN]):
     for i in range(FLOOR_LENGTH):
         for j in range(FLOOR_WIDTH):
             current_cell = []
-            # if (neighbor == 1 and (equal to neighbor or neighbor is empty))
+            # if (neighbor == 1 and (equal to neighbor or neighbor is empty or neighbor is corridor))
             for k in range(len(DI)):
                 i2 = i+DI[k]
                 j2 = j+DJ[k]
@@ -588,9 +588,10 @@ def add_reachability(reachability, grid, flattened_floor, room_idx, add=1):
 
 def add_soft_sun_reachability_constraint(sun_reachability, grid, apartment):
     is_room_sun_reachable = []
-
+    un_important_rooms = [Room.CORRIDOR, Room.DUCT, Room.ELEVATOR,
+                          Room.STAIR, Room.MAIN_BATHROOM, Room.MINOR_BATHROOM]
     for room_idx, room in enumerate(apartment):
-        if room.room_type != Room.DUCT and room.room_type != Room.STAIR and room.room_type != Room.ELEVATOR and room.room_type != Room.SUNROOM:
+        if not room.room_type in un_important_rooms:
             is_room_sun_reachable.append(add_reachability(sun_reachability, grid,
                                                           apartment, room_idx, 0))
 
@@ -695,14 +696,17 @@ def add_floor_utilization(grid):
     model.Add(sum(unitilized_cells) == 0)
 
 
-def add_landsacpe_reachability(grid, flattened_floor):
+def add_landsacpe_reachability(grid, apartments):
     un_important_rooms = [Room.CORRIDOR, Room.DUCT, Room.ELEVATOR,
                           Room.STAIR, Room.MAIN_BATHROOM, Room.MINOR_BATHROOM]
     landsacpe_reachability = get_reachability(grid, [FloorSide.LANDSCAPE])
-    for room_idx, room in enumerate(flattened_floor):
-        if not room.room_type in un_important_rooms:
-            add_reachability(landsacpe_reachability, grid,
-                             flattened_floor, room_idx)
+    for apartment in apartments:
+        landscape_reachability = []
+        for room_idx, room in enumerate(apartment):
+            if not room.room_type in un_important_rooms:
+                landscape_reachability.append(add_reachability(landsacpe_reachability, grid,
+                                                               flattened_floor, room_idx, 0))
+        model.Add(sum(landscape_reachability) > 0)
 
 
 def get_int_var_per_point(r1, c1, r2, c2, mirror, vertical=True):
@@ -846,7 +850,7 @@ FLOOR_TOP_SIDE = floor_side_dict[line[0]]
 FLOOR_RIGHT_SIDE = floor_side_dict[line[1]]
 FLOOR_BOTTOM_SIDE = floor_side_dict[line[2]]
 FLOOR_LEFT_SIDE = floor_side_dict[line[3]]
-n_apartments_types = next_int()
+n_apartment_types = next_int()
 apartments = []
 apartment_corridors = []
 ducts = []
@@ -855,7 +859,7 @@ apartment_no = 0
 apartment = []
 cnt_per_apartment_type = []
 soft_constraints = []
-for apartment_type in range(n_apartments_types):
+for apartment_type in range(n_apartment_types):
     cnt_per_apartment_type.append(next_int())
     n_rooms = next_int()
     n_corridors = next_int()
@@ -913,8 +917,8 @@ floor_corridors = []
 for i in range(n_floor_corridors):
     floor_corridors.append(Rectangle(Room.CORRIDOR))
 
-stair = Rectangle(Room.STAIR, width=1, height=1)
-elevator = Rectangle(Room.ELEVATOR, width=1, height=1)
+stair = Rectangle(Room.STAIR)
+elevator = Rectangle(Room.ELEVATOR)
 # ########################   Hard Constraints ########################
 flattened_floor = flatten_floor(
     apartments, ducts, floor_corridors, stair, elevator)
@@ -936,10 +940,11 @@ add_sunroom_constraint(sun_reachability, grid, flattened_floor)
 
 # ########################   Soft Constraints ########################
 apartment_idx = 0
-distances_to_main_bathroom = []
-max_bedroom_distances = []
 sunreachability_constraint = []
-for apartment_type in range(n_apartments_types):
+distances_between_pairs = []
+bedroom_distances = [0]
+distances_to_main_bathroom = []
+for apartment_type in range(n_apartment_types):
     for i in range(cnt_per_apartment_type[apartment_type]):
         apartment = apartments[apartment_idx + i]
         if soft_constraints[apartment_type * 4][0] == 1:
@@ -950,17 +955,43 @@ for apartment_type in range(n_apartments_types):
             idx2 = distance_constraint[1]
             equality = distance_constraint[2]
             distance = distance_constraint[3]
-            enforce_distance_constraint(
-                apartment[idx1], apartment[idx2], distance, equality)
+            distances_between_pairs.append(enforce_distance_constraint(
+                apartment[idx1], apartment[idx2], distance, equality))
         if soft_constraints[apartment_type * 4 + 2][0] == 1:
-            max_bedroom_distances.append(add_bedrooms_constraint(apartment))
+            bedroom_distances.append(add_bedrooms_constraint(apartment))
         if soft_constraints[apartment_type * 4 + 3][0] == 1:
             distances_to_main_bathroom.append(
                 max_distance_to_bathroom(apartment))
     apartment_idx += cnt_per_apartment_type[apartment_type]
 
+# max_bedroom_distances = model.NewIntVar(0, FLOOR_LENGTH + FLOOR_WIDTH, '')
+# max_distance_to_main_bathroom = model.NewIntVar(
+    # 0, 3 * (FLOOR_LENGTH + FLOOR_WIDTH), '')
+# model.AddMaxEquality(max_bedroom_distances, bedroom_distances)
+# model.AddMaxEquality(max_distance_to_main_bathroom, distances_to_main_bathroom)
+# model.Maximize(-1 * max_distance_to_main_bathroom)
+
 # ########################   Soft Constraints ########################
 
+# ########################   Global Constraints ########################
+
+global_landscape_view = next_int()
+global_elevator_distance = next_int()
+gloabal_symmetry_constraint = next_int()
+if global_landscape_view == 1:
+    add_landsacpe_reachability(grid, apartments)
+if global_elevator_distance == 1:
+    add_elevator_distance_constraint(elevator, apartments)
+if gloabal_symmetry_constraint == 1:
+    apartment_no = 0
+    for apartment_type in range(n_apartment_types):
+        if cnt_per_apartment_type[apartment_type] == 2:
+            add_symmetry(apartments[apartment_no],
+                         apartments[apartment_no + 1])
+        apartment_no += cnt_per_apartment_type[apartment_type]
+
+
+# ########################   Global Constraints ########################
 solver = cp_model.CpSolver()
 status = solver.Solve(model)
 print(solver.StatusName())

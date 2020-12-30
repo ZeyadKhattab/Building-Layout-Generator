@@ -1,4 +1,4 @@
-10 4
+10 10
 L L L L
 1
 2
@@ -6,18 +6,19 @@ L L L L
 2
 kitchen 1 0 0
 bedroom 1 0 0
-sunroom 1 0 0
-minorbathroom 1 0 0 1
-dressingroom 1 0 0 1
+bedroom 1 0 0
+mainbathroom 1 0 0
+livingroom 1 0 0
 1
 0 2 > 3
-0
+1
+1
+1
+1
+1
 0
 
-0
-0
-0
-0
 
 
-
+minorbathroom 1 0 0 1
+dressingroom 1 0 0 1
