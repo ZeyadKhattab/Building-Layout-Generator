@@ -51,6 +51,8 @@ ROOM_TYPE_MAP = {'Room.DININGROOM': 'DR', 'Room.KITCHEN': 'KT', 'Room.MAIN_BATHR
                  'Room.DRESSING_ROOM': 'DRS', 'Room.BEDROOM': 'BD', 'Room.SUNROOM': 'SR', 'Room.CORRIDOR': 'C',
                  'Room.DUCT': 'D', 'Room.STAIR': 'S', 'Room.ELEVATOR': 'E', 'Room.LIVING_ROOM': 'LR', 'Room.OTHER': 'X'}
 
+UNIMPORTANT_ROOMS = [Room.CORRIDOR, Room.DUCT, Room.ELEVATOR,
+                          Room.STAIR, Room.MAIN_BATHROOM, Room.MINOR_BATHROOM]
 
 ########################   Global Variables   ########################
 
@@ -607,10 +609,8 @@ def add_reachability(reachability, grid, flattened_floor, room_idx, add=1):
 
 def add_soft_sun_reachability_constraint(sun_reachability, grid, apartment):
     is_room_sun_reachable = []
-    un_important_rooms = [Room.CORRIDOR, Room.DUCT, Room.ELEVATOR,
-                          Room.STAIR, Room.MAIN_BATHROOM, Room.MINOR_BATHROOM]
     for room_idx, room in enumerate(apartment):
-        if not room.room_type in un_important_rooms:
+        if not room.room_type in UNIMPORTANT_ROOMS:
             is_room_sun_reachable.append(add_reachability(sun_reachability, grid,
                                                           apartment, room_idx, 0))
 
@@ -716,14 +716,12 @@ def add_floor_utilization(grid):
 
 
 def add_landsacpe_reachability(grid, apartments, consider_cnt):
-    un_important_rooms = [Room.CORRIDOR, Room.DUCT, Room.ELEVATOR,
-                          Room.STAIR, Room.MAIN_BATHROOM, Room.MINOR_BATHROOM]
     landsacpe_reachability = get_reachability(
         grid, consider_cnt, [FloorSide.LANDSCAPE])
     for apartment in apartments:
         landscape_reachability = []
         for room_idx, room in enumerate(apartment):
-            if not room.room_type in un_important_rooms:
+            if not room.room_type in UNIMPORTANT_ROOMS:
                 landscape_reachability.append(add_reachability(landsacpe_reachability, grid,
                                                                flattened_floor, room_idx, 0))
         model.Add(sum(landscape_reachability) > 0)
@@ -839,6 +837,10 @@ def add_symmetry(apartment_1, apartment_2):
         horizontal_symmetry)
     model.Add(horizontal_symmetry + vertical_symmetry == 1)
 
+def add_divine_ratio(flattened_floor):
+    for room in flattened_floor:
+        model.AddAllowedAssignments([room.width, room.height], [[3, 5], [5, 3], [5, 8], [8, 5]])
+
 ########################   Main Method Starts Here   ########################
 
 ########################   Process Future Input Here ########################
@@ -848,12 +850,14 @@ def next_int():
     # next line contains only one integer
     return int(input_file.readline())
 
+def next_line():
+    return input_file.readline().rstrip('\n').split(' ')
 
 input_file = open("input.txt", "r")
 # for line in f:
 #     print(line)
 
-line = input_file.readline().rstrip('\n').split(' ')
+line = next_line()
 FLOOR_LENGTH = int(line[0])
 FLOOR_WIDTH = int(line[1])
 MAX_DIM = max(FLOOR_LENGTH, FLOOR_WIDTH)
@@ -865,7 +869,7 @@ room_dict = {'bedroom': Room.BEDROOM, 'kitchen': Room.KITCHEN, 'diningroom': Roo
              'mainbathroom': Room.MAIN_BATHROOM, 'minorbathroom': Room.MINOR_BATHROOM, 'livingroom': Room.LIVING_ROOM, 'dressingroom': Room.DRESSING_ROOM, 'sunroom': Room.SUNROOM}
 
 
-line = input_file.readline().rstrip('\n').split(' ')
+line = next_line()
 FLOOR_TOP_SIDE = floor_side_dict[line[0]]
 FLOOR_RIGHT_SIDE = floor_side_dict[line[1]]
 FLOOR_BOTTOM_SIDE = floor_side_dict[line[2]]
@@ -885,7 +889,7 @@ for apartment_type in range(n_apartment_types):
     n_corridors = next_int()
     rooms_parameters = []
     for i in range(n_rooms):
-        line = input_file.readline().rstrip('\n').split(' ')
+        line = next_line()
         assert(len(line) > 3)
         room_type = room_dict[line[0].lower()]
         min_area = int(line[1])
@@ -900,9 +904,12 @@ for apartment_type in range(n_apartment_types):
 
     for soft_constraint_idx in range(4):
         if soft_constraint_idx == 1:
-            line = input_file.readline().rstrip('\n').split(' ')
-            assert(len(line) % 4 == 0)
+            line = next_line()
             distance_soft_constraint = []
+            if len(line) == 1:
+                soft_constraints.append(distance_soft_constraint)
+                continue
+            assert(len(line) % 4 == 0)
             for i in range(0, len(line), 4):
                 idx1 = int(line[0])
                 idx2 = int(line[1])
@@ -971,6 +978,8 @@ for apartment_type in range(n_apartment_types):
             sunreachability_constraint.append(add_soft_sun_reachability_constraint(
                 sun_reachability, grid, apartment))
         for distance_constraint in soft_constraints[apartment_type * 4 + 1]:
+            if len(distance_constraint) == 0:
+                continue
             idx1 = distance_constraint[0]
             idx2 = distance_constraint[1]
             equality = distance_constraint[2]
@@ -998,6 +1007,7 @@ for apartment_type in range(n_apartment_types):
 global_landscape_view = next_int()
 global_elevator_distance = next_int()
 gloabal_symmetry_constraint = next_int()
+global_divine_ratio = next_int()
 if global_landscape_view == 1:
     add_landsacpe_reachability(grid, apartments, consider_cnt)
 if global_elevator_distance == 1:
@@ -1009,7 +1019,8 @@ if gloabal_symmetry_constraint == 1:
             add_symmetry(apartments[apartment_no],
                          apartments[apartment_no + 1])
         apartment_no += cnt_per_apartment_type[apartment_type]
-
+if global_divine_ratio == 1:
+    add_divine_ratio(flattened_floor)
 
 # ########################   Global Constraints ########################
 solver = cp_model.CpSolver()
