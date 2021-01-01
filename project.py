@@ -8,6 +8,26 @@ import matplotlib.pyplot as plt
 from enum import Enum
 from random import randint
 
+
+class VarArraySolutionPrinterWithLimit(cp_model.CpSolverSolutionCallback):
+    """Print intermediate solutions."""
+
+    def __init__(self, flattened_floor, grid, limit):
+        cp_model.CpSolverSolutionCallback.__init__(self)
+        self.__flattened_floor = flattened_floor
+        self.__grid = grid
+        self.__solution_count = 0
+        self.__solution_limit = limit
+
+    def on_solution_callback(self):
+        self.__solution_count += 1
+        visualize_floor(self.__flattened_floor, self.__grid, self)
+        if self.__solution_count >= self.__solution_limit:
+            print('Stop search after %i solutions' % self.__solution_limit)
+            self.StopSearch()
+
+    def solution_count(self):
+        return self.__solution_count
 ########################   Enums   ########################
 
 
@@ -675,7 +695,7 @@ def print_sun_reachability(sun_reachibility):
         print()
 
 
-def visualize_floor(flattened_floor, grid):
+def visualize_floor(flattened_floor, grid, solver):
     """Visualizes the floor using matplotlib"""
     visualized_output = [[0 for j in range(FLOOR_WIDTH)]
                          for i in range(FLOOR_LENGTH)]
@@ -1013,17 +1033,15 @@ if gloabal_symmetry_constraint == 1:
 
 # ########################   Global Constraints ########################
 solver = cp_model.CpSolver()
-status = solver.Solve(model)
+solution_printer = VarArraySolutionPrinterWithLimit(flattened_floor, grid, 2)
+status = solver.SearchForAllSolutions(model, solution_printer)
 print(solver.StatusName())
 print('time = ', solver.WallTime())
-
-for idx in range(len(distances_to_main_bathroom)):
-    print(solver.Value(distances_to_main_bathroom[idx]))
 
 ########################   Main Method Ends Here   ##########################
 
 ########################  Debuging ################
 
-check_grid(flattened_floor, grid)
+# check_grid(flattened_floor, grid)
 
-visualize_floor(flattened_floor, grid)
+# visualize_floor(flattened_floor, grid)
