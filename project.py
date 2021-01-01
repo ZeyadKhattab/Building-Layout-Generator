@@ -46,6 +46,7 @@ class FloorSide(Enum):
 DI = [-1, 1, 0, 0]
 DJ = [0, 0, -1, 1]
 
+IGNORE_REACHABILITY = [Room.CORRIDOR]
 ROOM_TYPE_MAP = {'Room.DININGROOM': 'DR', 'Room.KITCHEN': 'KT', 'Room.MAIN_BATHROOM': 'MB', 'Room.MINOR_BATHROOM': 'mb',
                  'Room.DRESSING_ROOM': 'DRS', 'Room.BEDROOM': 'BD', 'Room.SUNROOM': 'SR', 'Room.CORRIDOR': 'C',
                  'Room.DUCT': 'D', 'Room.STAIR': 'S', 'Room.ELEVATOR': 'E', 'Room.LIVING_ROOM': 'LR', 'Room.OTHER': 'X'}
@@ -488,7 +489,19 @@ def get_grid(flattened_floor):
 # Consider corridors as well.
 
 
-def get_reachability(grid, floor_sides=[FloorSide.LANDSCAPE, FloorSide.OPEN]):
+def reorder_flattened_floor(flattened_floor):
+    new_flattened_floor = []
+    for room in flattened_floor:
+        if not room in IGNORE_REACHABILITY:
+            new_flattened_floor.append(room)
+    consider_cnt = len(new_flattened_floor)
+    for room in flattened_floor:
+        if room in IGNORE_REACHABILITY:
+            new_flattened_floor.append(room)
+    return new_flattened_floor, consider_cnt
+
+
+def get_reachability(grid, consider_cnt, floor_sides=[FloorSide.LANDSCAPE, FloorSide.OPEN]):
     """A cell is reachable if it's reachable from any of the four directions. """
     reachable_from = [[[model.NewBoolVar('%i %i %i' % (i, j, k)) for k in range(
         len(DI))] for j in range(FLOOR_WIDTH)] for i in range(FLOOR_LENGTH)]
@@ -518,7 +531,7 @@ def get_reachability(grid, floor_sides=[FloorSide.LANDSCAPE, FloorSide.OPEN]):
     for i in range(FLOOR_LENGTH):
         for j in range(FLOOR_WIDTH):
             current_cell = []
-            # if (neighbor == 1 and (equal to neighbor or neighbor is empty or neighbor is corridor))
+            # if (reachable[neighbor] == 1 and (equal to neighbor or neighbor is empty or neighbor is ignored))
             for k in range(len(DI)):
                 i2 = i+DI[k]
                 j2 = j+DJ[k]
@@ -536,11 +549,17 @@ def get_reachability(grid, floor_sides=[FloorSide.LANDSCAPE, FloorSide.OPEN]):
                 model.Add(grid[i2][j2] == -1).OnlyEnforceIf(neighbor_empty)
                 model.Add(grid[i2][j2] != -
                           1).OnlyEnforceIf(neighbor_empty.Not())
+                neighbor_ignored = model.NewBoolVar('')
+                model.Add(grid[i2][j2] >= consider_cnt).OnlyEnforceIf(
+                    neighbor_ignored)
+                model.Add(grid[i2][j2] < consider_cnt).OnlyEnforceIf(
+                    neighbor_ignored.Not())
                 not_blocked = model.NewBoolVar('')
                 model.AddImplication(neighbor_empty, not_blocked)
                 model.AddImplication(equal, not_blocked)
+                model.AddImplication(neighbor_ignored, not_blocked)
                 model.Add(not_blocked == 0).OnlyEnforceIf(
-                    [equal.Not(), neighbor_empty.Not()])
+                    [equal.Not(), neighbor_empty.Not(), neighbor_ignored.Not()])
                 model.Add(reachable_from[i][j][k] == 1).OnlyEnforceIf(
                     [reachable_from[i2][j2][k], not_blocked])
                 model.AddImplication(
@@ -696,10 +715,11 @@ def add_floor_utilization(grid):
     model.Add(sum(unitilized_cells) == 0)
 
 
-def add_landsacpe_reachability(grid, apartments):
+def add_landsacpe_reachability(grid, apartments, consider_cnt):
     un_important_rooms = [Room.CORRIDOR, Room.DUCT, Room.ELEVATOR,
                           Room.STAIR, Room.MAIN_BATHROOM, Room.MINOR_BATHROOM]
-    landsacpe_reachability = get_reachability(grid, [FloorSide.LANDSCAPE])
+    landsacpe_reachability = get_reachability(
+        grid, consider_cnt, [FloorSide.LANDSCAPE])
     for apartment in apartments:
         landscape_reachability = []
         for room_idx, room in enumerate(apartment):
@@ -922,7 +942,7 @@ elevator = Rectangle(Room.ELEVATOR)
 # ########################   Hard Constraints ########################
 flattened_floor = flatten_floor(
     apartments, ducts, floor_corridors, stair, elevator)
-
+flattened_floor, consider_cnt = reorder_flattened_floor(flattened_floor)
 for apartment in apartments:
     for room in apartment:
         room.add_room_constraints(apartment)
@@ -934,7 +954,7 @@ add_stair_elevator_constraints(stair, elevator, floor_corridors)
 grid = get_grid(flattened_floor)
 add_floor_utilization(grid)
 add_duct_constraints(ducts, flattened_floor)
-sun_reachability = get_reachability(grid)
+sun_reachability = get_reachability(grid, consider_cnt)
 add_sunroom_constraint(sun_reachability, grid, flattened_floor)
 # ########################   Hard Constraints ########################
 
@@ -979,7 +999,7 @@ global_landscape_view = next_int()
 global_elevator_distance = next_int()
 gloabal_symmetry_constraint = next_int()
 if global_landscape_view == 1:
-    add_landsacpe_reachability(grid, apartments)
+    add_landsacpe_reachability(grid, apartments, consider_cnt)
 if global_elevator_distance == 1:
     add_elevator_distance_constraint(elevator, apartments)
 if gloabal_symmetry_constraint == 1:
