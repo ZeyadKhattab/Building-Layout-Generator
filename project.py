@@ -52,7 +52,7 @@ ROOM_TYPE_MAP = {'Room.DININGROOM': 'DR', 'Room.KITCHEN': 'KT', 'Room.MAIN_BATHR
                  'Room.DUCT': 'D', 'Room.STAIR': 'S', 'Room.ELEVATOR': 'E', 'Room.LIVING_ROOM': 'LR', 'Room.OTHER': 'X'}
 
 UNIMPORTANT_ROOMS = [Room.CORRIDOR, Room.DUCT, Room.ELEVATOR,
-                          Room.STAIR, Room.MAIN_BATHROOM, Room.MINOR_BATHROOM]
+                     Room.STAIR, Room.MAIN_BATHROOM, Room.MINOR_BATHROOM]
 
 ########################   Global Variables   ########################
 
@@ -837,9 +837,11 @@ def add_symmetry(apartment_1, apartment_2):
         horizontal_symmetry)
     model.Add(horizontal_symmetry + vertical_symmetry == 1)
 
+
 def add_divine_ratio(flattened_floor):
     for room in flattened_floor:
-        model.AddAllowedAssignments([room.width, room.height], [[3, 5], [5, 3], [5, 8], [8, 5]])
+        model.AddAllowedAssignments([room.width, room.height], [
+                                    [3, 5], [5, 3], [5, 8], [8, 5]])
 
 ########################   Main Method Starts Here   ########################
 
@@ -850,8 +852,10 @@ def next_int():
     # next line contains only one integer
     return int(input_file.readline())
 
+
 def next_line():
     return input_file.readline().rstrip('\n').split(' ')
+
 
 input_file = open("input.txt", "r")
 # for line in f:
@@ -993,9 +997,12 @@ for apartment_type in range(n_apartment_types):
                 max_distance_to_bathroom(apartment))
     apartment_idx += cnt_per_apartment_type[apartment_type]
 
+# max_distances_between_pairs = model.NewIntVar(
+#     0, FLOOR_LENGTH + FLOOR_WIDTH, '')
 # max_bedroom_distances = model.NewIntVar(0, FLOOR_LENGTH + FLOOR_WIDTH, '')
 # max_distance_to_main_bathroom = model.NewIntVar(
-    # 0, 3 * (FLOOR_LENGTH + FLOOR_WIDTH), '')
+#     0, 3 * (FLOOR_LENGTH + FLOOR_WIDTH), '')
+# model.AddMaxEquality(max_distances_between_pairs, distances_between_pairs)
 # model.AddMaxEquality(max_bedroom_distances, bedroom_distances)
 # model.AddMaxEquality(max_distance_to_main_bathroom, distances_to_main_bathroom)
 # model.Maximize(-1 * max_distance_to_main_bathroom)
@@ -1028,12 +1035,31 @@ status = solver.Solve(model)
 print(solver.StatusName())
 print('time = ', solver.WallTime())
 
-for idx in range(len(distances_to_main_bathroom)):
-    print(solver.Value(distances_to_main_bathroom[idx]))
+apartment_idx = 0
+for apartment_type in range(n_apartment_types):
+    for i in range(cnt_per_apartment_type[apartment_type]):
+        print('Soft constraints stats for apartment %d in apartment type %d:' % (
+              (i + 1), (apartment_type + 1)))
+        apartment = apartments[apartment_idx + i]
+        if soft_constraints[apartment_type * 4][0] == 1:
+            print('Number of rooms reachable from the sun: ',
+                  solver.Value(sunreachability_constraint[apartment_idx]))
+        for distance_constraint in soft_constraints[apartment_type * 4 + 1]:
+            if len(distance_constraint) == 0:
+                continue
+            print('Max distance between rooms: ', solver.Value(
+                distances_between_pairs[apartment_idx]))
+        if soft_constraints[apartment_type * 4 + 2][0] == 1:
+            print('Max distance between rooms: ', solver.Value(
+                bedroom_distances[apartment_idx]))
+        if soft_constraints[apartment_type * 4 + 3][0] == 1:
+            print('Max distance to the main bathroom: ',
+                  solver.Value(distances_to_main_bathroom[apartment_idx]))
+    apartment_idx += cnt_per_apartment_type[apartment_type]
 
-########################   Main Method Ends Here   ##########################
+########################   Main Method Ends Here   ########################
 
-########################  Debuging ################
+########################  Debuging ########################
 
 check_grid(flattened_floor, grid)
 
