@@ -1025,7 +1025,8 @@ for apartment_type in range(n_apartment_types):
 # model.AddMaxEquality(max_distances_between_pairs, distances_between_pairs)
 # model.AddMaxEquality(max_bedroom_distances, bedroom_distances)
 # model.AddMaxEquality(max_distance_to_main_bathroom, distances_to_main_bathroom)
-# model.Maximize(-1 * max_distance_to_main_bathroom)
+# model.Maximize(-1 * max_distances_between_pairs + -1 * max_bedroom_distances + -
+#                1 * max_distance_to_main_bathroom + sum(sunreachability_constraint))
 
 # ########################   Soft Constraints ########################
 
