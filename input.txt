@@ -1,0 +1,24 @@
+10 10
+L L L L
+1
+2
+5
+2
+kitchen 1 0 0
+bedroom 1 0 0
+bedroom 1 0 0
+mainbathroom 1 0 0
+livingroom 1 0 0
+1
+0 2 > 3
+1
+1
+1
+1
+1
+0
+
+
+
+minorbathroom 1 0 0 1
+dressingroom 1 0 0 1

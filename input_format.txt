@@ -1,0 +1,15 @@
+width_of_floor length_of_floor
+side_up side_right side_down side_left (L/O/N)
+n_type_of_apartments
+    cnt_per_apartment
+    n_rooms 
+    n_corridors
+    type_of_rooms (diningroom/kitchen/...) idx_adjacency (optional [dressing room, minor bathroom] -1?)
+    min_area, width, height (1,0,0)
+    -----
+    daylight 0
+    distance idx1 idx2 equality(<,>)  value 
+    bedrooms 0
+    mainbathroom 0
+optional_global
+bool...
