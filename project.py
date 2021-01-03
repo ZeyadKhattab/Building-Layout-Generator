@@ -66,7 +66,7 @@ class FloorSide(Enum):
 DI = [-1, 1, 0, 0]
 DJ = [0, 0, -1, 1]
 
-IGNORE_REACHABILITY = [Room.CORRIDOR]
+IGNORE_REACHABILITY = []
 ROOM_TYPE_MAP = {'Room.DININGROOM': 'DR', 'Room.KITCHEN': 'KT', 'Room.MAIN_BATHROOM': 'MB', 'Room.MINOR_BATHROOM': 'mb',
                  'Room.DRESSING_ROOM': 'DRS', 'Room.BEDROOM': 'BD', 'Room.SUNROOM': 'SR', 'Room.CORRIDOR': 'C',
                  'Room.DUCT': 'D', 'Room.STAIR': 'S', 'Room.ELEVATOR': 'E', 'Room.LIVING_ROOM': 'LR', 'Room.OTHER': 'X'}
