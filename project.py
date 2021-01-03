@@ -244,11 +244,6 @@ def add_intersection_between_edges(edge_a, edge_b):
     model.Add(max_edge_start != min_edge_end).OnlyEnforceIf(eq.Not())
     return leq, eq
 
-# This method sets the relation between the start and end (rows/columns)
-# by adding the |AddNoOverlap2D| constraint to the model.
-
-# Takes in the flattened floor.
-
 
 def add_no_intersection_constraint(flattened_floor):
     row_intervals = [model.NewIntervalVar(
@@ -883,8 +878,6 @@ def next_line():
 
 
 input_file = open("input.txt", "r")
-# for line in f:
-#     print(line)
 
 line = next_line()
 FLOOR_LENGTH = int(line[0])
@@ -1054,6 +1047,7 @@ if global_divine_ratio == 1:
     add_divine_ratio(flattened_floor)
 
 # ########################   Global Constraints ########################
+
 solver = cp_model.CpSolver()
 # solution_printer = VarArraySolutionPrinterWithLimit(flattened_floor, grid, 2)
 # status = solver.SearchForAllSolutions(model, solution_printer)
@@ -1074,20 +1068,17 @@ for apartment_type in range(n_apartment_types):
         for distance_constraint in soft_constraints[apartment_type * 4 + 1]:
             if len(distance_constraint) == 0:
                 continue
-            print('Max distance between rooms: ', solver.Value(
+            print('Number of distane constraints satisfied: ', solver.Value(
                 distances_between_pairs[apartment_idx+i]))
         if soft_constraints[apartment_type * 4 + 2][0] == 1:
-            print('Max distance between rooms: ', solver.Value(
+            print('Max distance between bedrooms: ', solver.Value(
                 bedroom_distances[apartment_idx+i]))
         if soft_constraints[apartment_type * 4 + 3][0] == 1:
             print('Max distance to the main bathroom: ',
                   solver.Value(distances_to_main_bathroom[apartment_idx+i]))
     apartment_idx += cnt_per_apartment_type[apartment_type]
 
-########################   Main Method Ends Here   ########################
-
-########################  Debuging ########################
-
-# check_grid(flattened_floor, grid)
 
 visualize_floor(flattened_floor, grid, solver)
+
+########################   Main Method Ends Here   ########################
