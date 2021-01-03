@@ -513,13 +513,18 @@ def get_grid(flattened_floor):
 
 def reorder_flattened_floor(flattened_floor):
     new_flattened_floor = []
+    global_idx = 0
     for room in flattened_floor:
-        if not room in IGNORE_REACHABILITY:
+        if not room.room_type in IGNORE_REACHABILITY:
             new_flattened_floor.append(room)
+            room.global_idx = global_idx
+            global_idx += 1
     consider_cnt = len(new_flattened_floor)
     for room in flattened_floor:
-        if room in IGNORE_REACHABILITY:
+        if room.room_type in IGNORE_REACHABILITY:
             new_flattened_floor.append(room)
+            room.global_idx = global_idx
+            global_idx += 1
     return new_flattened_floor, consider_cnt
 
 
@@ -629,10 +634,10 @@ def add_reachability(reachability, grid, flattened_floor, room_idx, add=1):
 
 def add_soft_sun_reachability_constraint(sun_reachability, grid, apartment):
     is_room_sun_reachable = []
-    for room_idx, room in enumerate(apartment):
+    for room in apartment:
         if not room.room_type in UNIMPORTANT_ROOMS:
             is_room_sun_reachable.append(add_reachability(sun_reachability, grid,
-                                                          apartment, room_idx, 0))
+                                                          apartment, room.global_idx, 0))
 
     return sum(is_room_sun_reachable)
 
@@ -994,7 +999,7 @@ apartment_idx = 0
 sunreachability_constraint = []
 distances_between_pairs = []
 bedroom_distances = [0]
-distances_to_main_bathroom = []
+distances_to_main_bathroom = [0]
 for apartment_type in range(n_apartment_types):
     for i in range(cnt_per_apartment_type[apartment_type]):
         apartment = apartments[apartment_idx + i]
@@ -1017,16 +1022,14 @@ for apartment_type in range(n_apartment_types):
                 max_distance_to_bathroom(apartment))
     apartment_idx += cnt_per_apartment_type[apartment_type]
 
-# max_distances_between_pairs = model.NewIntVar(
-#     0, FLOOR_LENGTH + FLOOR_WIDTH, '')
-# max_bedroom_distances = model.NewIntVar(0, FLOOR_LENGTH + FLOOR_WIDTH, '')
-# max_distance_to_main_bathroom = model.NewIntVar(
-#     0, 3 * (FLOOR_LENGTH + FLOOR_WIDTH), '')
-# model.AddMaxEquality(max_distances_between_pairs, distances_between_pairs)
-# model.AddMaxEquality(max_bedroom_distances, bedroom_distances)
-# model.AddMaxEquality(max_distance_to_main_bathroom, distances_to_main_bathroom)
-# model.Maximize(-1 * max_distances_between_pairs + -1 * max_bedroom_distances + -
-#                1 * max_distance_to_main_bathroom + sum(sunreachability_constraint))
+
+max_bedroom_distances = model.NewIntVar(0, FLOOR_LENGTH + FLOOR_WIDTH, '')
+max_distance_to_main_bathroom = model.NewIntVar(
+    0, 3 * (FLOOR_LENGTH + FLOOR_WIDTH), '')
+model.AddMaxEquality(max_bedroom_distances, bedroom_distances)
+model.AddMaxEquality(max_distance_to_main_bathroom, distances_to_main_bathroom)
+model.Maximize(sum(distances_between_pairs) + -1 * max_bedroom_distances + -
+               1 * max_distance_to_main_bathroom + sum(sunreachability_constraint))
 
 # ########################   Soft Constraints ########################
 
@@ -1052,8 +1055,10 @@ if global_divine_ratio == 1:
 
 # ########################   Global Constraints ########################
 solver = cp_model.CpSolver()
-solution_printer = VarArraySolutionPrinterWithLimit(flattened_floor, grid, 2)
-status = solver.SearchForAllSolutions(model, solution_printer)
+# solution_printer = VarArraySolutionPrinterWithLimit(flattened_floor, grid, 2)
+# status = solver.SearchForAllSolutions(model, solution_printer)
+solver.Solve(model)
+
 print(solver.StatusName())
 print('time = ', solver.WallTime())
 
@@ -1065,18 +1070,18 @@ for apartment_type in range(n_apartment_types):
         apartment = apartments[apartment_idx + i]
         if soft_constraints[apartment_type * 4][0] == 1:
             print('Number of rooms reachable from the sun: ',
-                  solver.Value(sunreachability_constraint[apartment_idx]))
+                  solver.Value(sunreachability_constraint[apartment_idx+i]))
         for distance_constraint in soft_constraints[apartment_type * 4 + 1]:
             if len(distance_constraint) == 0:
                 continue
             print('Max distance between rooms: ', solver.Value(
-                distances_between_pairs[apartment_idx]))
+                distances_between_pairs[apartment_idx+i]))
         if soft_constraints[apartment_type * 4 + 2][0] == 1:
             print('Max distance between rooms: ', solver.Value(
-                bedroom_distances[apartment_idx]))
+                bedroom_distances[apartment_idx+i]))
         if soft_constraints[apartment_type * 4 + 3][0] == 1:
             print('Max distance to the main bathroom: ',
-                  solver.Value(distances_to_main_bathroom[apartment_idx]))
+                  solver.Value(distances_to_main_bathroom[apartment_idx+i]))
     apartment_idx += cnt_per_apartment_type[apartment_type]
 
 ########################   Main Method Ends Here   ########################
@@ -1085,4 +1090,4 @@ for apartment_type in range(n_apartment_types):
 
 # check_grid(flattened_floor, grid)
 
-# visualize_floor(flattened_floor, grid)
+visualize_floor(flattened_floor, grid, solver)
