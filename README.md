@@ -1,4 +1,4 @@
-# Building-Layout-Generator
+# Building Layout Generator
 
 - The source code for this project is in the file [project.py](project.py).
 - The input is expected to be in the file [input.txt](input.txt) 
