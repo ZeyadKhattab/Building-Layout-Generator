@@ -8,3 +8,6 @@
 ```bash
 python project.py
 ```
+# External Dependencies
+- ``` python -m pip install -U matplotlib ```
+- ``` pip install --upgrade --user ortools ```
