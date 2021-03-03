@@ -12,13 +12,8 @@ livingroom 1 0 0
 1
 0 2 > 3
 1
-1
+0
 1
 1
 1
 0
-
-
-
-minorbathroom 1 0 0 1
-dressingroom 1 0 0 1
